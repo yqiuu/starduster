@@ -1,8 +1,10 @@
 from .utils import Evaluator
 
-import numpy as np
 import torch
 from torch import nn
+
+
+__all__ = ["VAE", "Evaluator_VAE"]
 
 
 class Encoder(nn.Module):

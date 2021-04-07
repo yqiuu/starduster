@@ -5,6 +5,9 @@ import torch
 from torch import nn
 
 
+__all__ = ["Evaluator", "create_MLP", "fit", "merge_history"]
+
+
 class Evaluator(ABC):
     def __init__(self, model, opt, labels):
         self.model = model

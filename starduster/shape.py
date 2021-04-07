@@ -3,9 +3,12 @@ from .utils import Evaluator
 import torch
 
 
+__all__ = ["Evaluator_Shape"]
+
+
 class Evaluator_Shape(Evaluator):
     def __init__(self, model, opt):
-        super(Evaluator_Shape, self).__init__(model, opt, ("loss", "l"))
+        super(Evaluator_Shape, self).__init__(model, opt, ("loss",))
 
 
     def loss_func(self, x, y, backward=True):

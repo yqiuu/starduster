@@ -1,3 +1,3 @@
-from . import utils
-from . import vae
-from . import shape
+from .utils import *
+from .vae import *
+from .shape import *
