@@ -17,7 +17,7 @@ class Evaluator(ABC):
 
     @abstractmethod
     def loss_func(self, x, y):
-        return 0., None
+        return 0.
 
     
     def call(self, data, backward=True):
@@ -25,16 +25,17 @@ class Evaluator(ABC):
         for i_b, (x_b, y_b) in enumerate(data):
             if backward:
                 l_b = self.loss_func(x_b, y_b)
+                if isinstance(l_b, torch.Tensor):
+                    l_b = [l_b]
                 l_b[0].backward()
                 self.opt.step()
                 self.opt.zero_grad()
             else:
                 self.model.eval()
                 l_b = self.loss_func(x_b, y_b)
-            if l_b[1] is None:
-                values[i_b] = [l_b[0]]
-            else:
-                values[i_b] = l_b
+                if isinstance(l_b, torch.Tensor):
+                    l_b = [l_b]
+            values[i_b] = l_b
         values = torch.mean(torch.tensor(values), dim=0).detach().tolist()
         return values
 
