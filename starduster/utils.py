@@ -19,7 +19,11 @@ class Evaluator(ABC):
     def loss_func(self, x, y):
         return 0.
 
-    
+
+    def add_scheduler(self, scheduler):
+        self.scheduler = scheduler
+
+
     def call(self, data, backward=True):
         values = [None]*len(data)
         for i_b, (x_b, y_b) in enumerate(data):
@@ -30,6 +34,10 @@ class Evaluator(ABC):
                 l_b[0].backward()
                 self.opt.step()
                 self.opt.zero_grad()
+                try:
+                    self.scheduler.step()
+                except AttributeError:
+                    pass
             else:
                 self.model.eval()
                 l_b = self.loss_func(x_b, y_b)
