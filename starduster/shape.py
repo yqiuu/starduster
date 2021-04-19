@@ -16,5 +16,5 @@ class Evaluator_Shape(Evaluator):
         y_std = y[:, :, 1]
         y_pred = self.model(x)
         delta = (y_pred - y_mu)/y_std
-        return torch.mean(delta*delta), None
+        return torch.mean(delta*delta)
 
