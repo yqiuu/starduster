@@ -26,7 +26,9 @@ class Evaluator(ABC):
 
     def call(self, data, backward=True):
         values = [None]*len(data)
-        for i_b, (x_b, y_b) in enumerate(data):
+        for i_b, d_b in enumerate(data):
+            x_b = d_b[0]
+            y_b = d_b[1:]
             if backward:
                 l_b = self.loss_func(x_b, y_b)
                 if isinstance(l_b, torch.Tensor):
