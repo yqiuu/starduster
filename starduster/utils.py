@@ -27,10 +27,8 @@ class Evaluator(ABC):
     def call(self, data, backward=True):
         values = [None]*len(data)
         for i_b, d_b in enumerate(data):
-            x_b = d_b[0]
-            y_b = d_b[1:]
             if backward:
-                l_b = self.loss_func(x_b, y_b)
+                l_b = self.loss_func(*d_b)
                 if isinstance(l_b, torch.Tensor):
                     l_b = [l_b]
                 l_b[0].backward()
@@ -42,7 +40,7 @@ class Evaluator(ABC):
                     pass
             else:
                 self.model.eval()
-                l_b = self.loss_func(x_b, y_b)
+                l_b = self.loss_func(*d_b)
                 if isinstance(l_b, torch.Tensor):
                     l_b = [l_b]
             values[i_b] = l_b

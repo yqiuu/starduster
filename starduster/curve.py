@@ -42,8 +42,8 @@ class Evaluator_Curve(Evaluator):
         self.adapter = adapter
 
 
-    def loss_func(self, x, y):
-        k_true, norm_true = y
+    def loss_func(self, *args):
+        x, k_true, norm_true = args
         z, norm_pred = self.model(x)
         k_pred = self.auto_encoder.decoder(torch.matmul(z, self.adapter))
         delta = norm_pred*k_pred - norm_true*k_true

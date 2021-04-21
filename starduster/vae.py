@@ -59,19 +59,20 @@ class Evaluator_VAE(Evaluator):
         self.beta = beta
 
 
-    def loss_func(self, x, y, backward=True):
-        y_pred, mu, std = self.model(x)
-        l_out = self.out_loss(y, y_pred)
-        l_kld = self.kld_loss(y, y_pred, mu, std)
+    def loss_func(self, *args):
+        x, k_true = args
+        k_pred, mu, std = self.model(x)
+        l_out = self.out_loss(k_true, k_pred)
+        l_kld = self.kld_loss(mu, std)
         loss = l_out + self.beta*l_kld
         return loss, l_out, l_kld
 
 
-    def out_loss(self, y_true, y_pred):
-        delta = y_true - y_pred
+    def out_loss(self, k_true, k_pred):
+        delta = k_true - k_pred
         return torch.mean(delta*delta)
 
 
-    def kld_loss(self, y_true, y_pred, mu, std):
+    def kld_loss(self, mu, std):
         return .5*torch.mean(std*std + mu*mu - 1. - 2.*torch.log(std))
 
