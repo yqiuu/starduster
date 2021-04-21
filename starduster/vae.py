@@ -69,8 +69,9 @@ class Evaluator_VAE(Evaluator):
 
 
     def out_loss(self, k_true, k_pred):
-        delta = k_true - k_pred
-        return torch.mean(delta*delta)
+        delta = torch.norm(k_true - k_pred, float('inf'), dim=1)
+        delta = delta/(1 - k_true[:, None, -1])
+        return torch.mean(delta)
 
 
     def kld_loss(self, mu, std):
