@@ -41,6 +41,7 @@ class VAE(nn.Module):
         super().__init__()
         self.encoder = Encoder(input_size, n_hidden, n_latent)
         self.decoder = Decoder(input_size, n_hidden, n_latent)
+        self.n_latent = n_latent
 
 
     def forward(self, x):
