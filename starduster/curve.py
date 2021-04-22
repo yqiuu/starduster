@@ -1,10 +1,11 @@
 from .utils import Evaluator
 
+import numpy as np
 import torch
 from torch import nn
 
 
-__all__ = ["DualSequential", "Evaluator_Curve"]
+__all__ = ["ExtinctionCurve", "EvaluatorCurve"]
 
 
 class DualSequential(nn.Module):
@@ -25,29 +26,43 @@ class DualSequential(nn.Module):
         return z, norm
 
 
-class Evaluator_Curve(Evaluator):
-    def __init__(self, model, opt, auto_encoder, inds_include=None):
-        super().__init__(model, opt, ("loss",))
-        self.auto_encoder = auto_encoder
+class ExtinctionCurve(nn.Module):
+    def __init__(self, auto_encoder, layer_sizes, inds_include=None):
+        super().__init__()
+        if inds_include is None:
+            inds_include = np.arange(auto_encoder.n_latent)
+        self._auto_encoder = (auto_encoder,)
         self.set_adapter(inds_include)
+        self.dual_seq = DualSequential(len(inds_include), layer_sizes)
+
+    
+    @property
+    def auto_encoder(self):
+        return self._auto_encoder[0]
 
 
     def set_adapter(self, inds_include):
-        n_latent = self.auto_encoder.n_latent
-        if inds_include is None:
-            inds_include = np.arange(n_latent)
-        adapter = torch.zeros([len(inds_include), n_latent])
+        adapter = torch.zeros([len(inds_include), self.auto_encoder.n_latent])
         for i, j in enumerate(inds_include):
             adapter[i, j] = 1.
         self.adapter = adapter
 
+    
+    def forward(self, x):
+        z, norm = self.dual_seq(x)
+        k = self.auto_encoder.decoder(torch.matmul(z, self.adapter))
+        return k*norm
+
+
+class EvaluatorCurve(Evaluator):
+    def __init__(self, model, opt):
+        super().__init__(model, opt, ("loss",))
+
 
     def loss_func(self, *args):
         x, k_true, norm_true = args
-        z, norm_pred = self.model(x)
-        k_pred = self.auto_encoder.decoder(torch.matmul(z, self.adapter))
-        delta = norm_pred*k_pred - norm_true*k_true
-        delta = torch.norm(delta, float('inf'), dim=1)
-        delta = delta/(1 - k_true[:, None, -1])
+        kn_pred = self.model(x)
+        delta = torch.norm(kn_pred - norm_true*k_true, float('inf'), dim=1) \
+            / (1 - k_true[:, None, -1])
         return torch.mean(delta)
 
