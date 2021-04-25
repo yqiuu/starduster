@@ -5,7 +5,7 @@ import torch
 from torch import nn
 
 
-__all__ = ["Evaluator", "create_MLP", "fit", "merge_history"]
+__all__ = ["Evaluator", "fit", "merge_history"]
 
 
 class Evaluator(ABC):
@@ -46,17 +46,6 @@ class Evaluator(ABC):
             values[i_b] = l_b
         values = torch.mean(torch.tensor(values), dim=0).detach().tolist()
         return values
-
-
-def create_MLP(layers, acts):
-    model = nn.Sequential()
-    for i in range(len(acts)):
-        model.add_module(f'lin{i}', nn.Linear(layers[i], layers[i+1]))
-        if acts[i] == 'tanh':
-            model.add_module(f'act{i}', nn.Tanh())
-        elif acts[i] == 'softplus':
-            model.add_module(f'act{i}', nn.Softplus())
-    return model
 
 
 def fit(evaluator, dl_train, dl_valid, n_epochs=100):
