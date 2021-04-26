@@ -4,7 +4,7 @@ import torch
 from torch import nn
 
 
-__all__ = ["VAE", "Evaluator_VAE"]
+__all__ = ["VAE", "EvaluatorVAE"]
 
 
 class Encoder(nn.Module):
@@ -51,11 +51,9 @@ class VAE(nn.Module):
         return x, mu, std
 
 
-class Evaluator_VAE(Evaluator):
+class EvaluatorVAE(Evaluator):
     def __init__(self, model, opt, beta=1e-4):
-        super(Evaluator_VAE, self).__init__(
-            model, opt, ("loss", "l_out", "l_kld")
-        )
+        super().__init__(model, opt, ("loss", "l_out", "l_kld"))
         self.beta = beta
 
 
