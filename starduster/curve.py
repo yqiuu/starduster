@@ -9,13 +9,13 @@ __all__ = ["ExtinctionCurve", "EvaluatorCurve"]
 
 
 class DualSequential(nn.Module):
-    def __init__(self, n_shape, layer_sizes):
+    def __init__(self, n_out, layer_sizes):
         super().__init__()
         layers = []
         for i, k in zip(layer_sizes[:-1], layer_sizes[1:]):
             layers.extend([nn.Linear(i, k), nn.Tanh()])
         self.seq = nn.Sequential(*layers)
-        self.lin_shape = nn.Linear(layer_sizes[-1], n_shape)
+        self.lin_shape = nn.Linear(layer_sizes[-1], n_out)
         self.lin_norm = nn.Linear(layer_sizes[-1], 1)
 
 
@@ -27,13 +27,10 @@ class DualSequential(nn.Module):
 
 
 class ExtinctionCurve(nn.Module):
-    def __init__(self, auto_encoder, layer_sizes, inds_include=None):
+    def __init__(self, auto_encoder, layer_sizes):
         super().__init__()
-        if inds_include is None:
-            inds_include = np.arange(auto_encoder.n_latent)
         self._auto_encoder = (auto_encoder,)
-        self.set_adapter(inds_include)
-        self.dual_seq = DualSequential(len(inds_include), layer_sizes)
+        self.dual_seq = DualSequential(auto_encoder.n_latent, layer_sizes)
 
     
     @property
@@ -41,16 +38,9 @@ class ExtinctionCurve(nn.Module):
         return self._auto_encoder[0]
 
 
-    def set_adapter(self, inds_include):
-        adapter = torch.zeros([len(inds_include), self.auto_encoder.n_latent])
-        for i, j in enumerate(inds_include):
-            adapter[i, j] = 1.
-        self.adapter = adapter
-
-    
     def forward(self, x):
         z, norm = self.dual_seq(x)
-        k = self.auto_encoder.decoder(torch.matmul(z, self.adapter))
+        k = self.auto_encoder.decoder(z)
         return k*norm
 
 
