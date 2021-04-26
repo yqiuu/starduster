@@ -9,10 +9,13 @@ __all__ = ["Evaluator", "fit", "merge_history"]
 
 
 class Evaluator(ABC):
-    def __init__(self, model, opt, labels):
+    def __init__(self, model, opt, labels=None):
         self.model = model
         self.opt = opt
-        self.labels = labels
+        if labels is None:
+            self.labels = ("loss",)
+        else:
+            self.labels = labels
 
 
     @abstractmethod
