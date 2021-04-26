@@ -58,8 +58,8 @@ class EvaluatorVAE(Evaluator):
 
 
     def loss_func(self, *args):
-        x, k_true = args
-        k_pred, mu, std = self.model(x)
+        k_true, = args
+        k_pred, mu, std = self.model(k_true)
         l_out = self.out_loss(k_true, k_pred)
         l_kld = self.kld_loss(mu, std)
         loss = l_out + self.beta*l_kld
