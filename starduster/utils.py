@@ -44,6 +44,7 @@ class Evaluator(ABC):
             else:
                 self.model.eval()
                 l_b = self.loss_func(*d_b)
+                self.model.train()
                 if isinstance(l_b, torch.Tensor):
                     l_b = [l_b]
             values[i_b] = l_b
