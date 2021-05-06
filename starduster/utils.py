@@ -49,7 +49,8 @@ class Evaluator(ABC):
                     l_b = [l_b]
             values[i_b] = l_b
         values = torch.mean(torch.tensor(values), dim=0).detach().tolist()
-        return values
+        lr = self.opt.param_groups[0]['lr']
+        return values, lr
 
 
 def fit(evaluator, dl_train, dl_valid, n_epochs=100):
@@ -60,9 +61,11 @@ def fit(evaluator, dl_train, dl_valid, n_epochs=100):
 
     history_train = [None]*n_epochs
     history_valid = [None]*n_epochs
+    history_lr = [None]*n_epochs
     for i_e in range(n_epochs):
-        history_train[i_e] = evaluator.call(dl_train, backward=True)
-        history_valid[i_e] = evaluator.call(dl_valid, backward=False)
+        history_train[i_e], history_lr[i_e] \
+            = evaluator.call(dl_train, backward=True)
+        history_valid[i_e], _ = evaluator.call(dl_valid, backward=False)
 
         msg = ["{}(val)={:.2e}({:.2e})".format(*values) for values in \
             zip(evaluator.labels, history_train[i_e], history_valid[i_e])]
@@ -72,6 +75,7 @@ def fit(evaluator, dl_train, dl_valid, n_epochs=100):
 
     history = {}
     history['epoch'] = np.arange(1, n_epochs + 1)
+    history['lr'] = np.asarray(history_lr)
     for name, values in zip(evaluator.labels, zip(*history_train)):
         history[name] = np.asarray(values)
     for name, values in zip(evaluator.labels, zip(*history_valid)):
