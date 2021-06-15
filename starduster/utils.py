@@ -1,5 +1,3 @@
-from abc import ABC, abstractmethod
-
 import numpy as np
 import torch
 from torch import nn
@@ -8,23 +6,17 @@ from torch import nn
 __all__ = ["Evaluator", "fit", "merge_history"]
 
 
-class Evaluator(ABC):
-    def __init__(self, model, opt, labels=None):
+class Evaluator:
+    def __init__(self, model, opt, loss, labels=None, scheduler=None):
         self.model = model
         self.opt = opt
-        if labels is None:
-            self.labels = ("loss",)
-        else:
-            self.labels = labels
-
-
-    @abstractmethod
-    def loss_func(self, x, y):
-        return 0.
-
-
-    def add_scheduler(self, scheduler):
+        self.loss = loss
+        self.labels = ("loss",) if labels is None else labels
         self.scheduler = scheduler
+
+
+    def loss_func(self, x, y):
+        return self.loss(self.model(x), y)
 
 
     def call(self, data, backward=True):
@@ -37,10 +29,8 @@ class Evaluator(ABC):
                 l_b[0].backward()
                 self.opt.step()
                 self.opt.zero_grad()
-                try:
+                if self.scheduler is not None:
                     self.scheduler.step()
-                except AttributeError:
-                    pass
             else:
                 self.model.eval()
                 l_b = self.loss_func(*d_b)
