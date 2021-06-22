@@ -3,7 +3,7 @@ import torch
 from torch import nn
 
 
-__all__ = ["Evaluator", "fit", "merge_history"]
+__all__ = ["Evaluator", "fit", "merge_history", "load_module"]
 
 
 class Evaluator:
@@ -86,4 +86,11 @@ def merge_history(history1, history2):
                 history1[key], history2[key]
             )
     return history
+
+
+def load_module(fname, cls):
+    checkpoint = torch.load(fname)
+    module = cls(*checkpoint['params'])
+    module.load_state_dict(checkpoint['model_state_dict'])
+    return module, checkpoint
 
