@@ -15,8 +15,13 @@ class Evaluator:
         self.scheduler = scheduler
 
 
-    def loss_func(self, x, y):
-        return self.loss(self.model(x), y)
+    def loss_func(self, *args):
+        if len(args) == 1:
+            x, = args
+            return self.loss(self.model(x), x)
+        else:
+            x, y = args[:-1], args[-1]
+            return self.loss(self.model(x), y)
 
 
     def call(self, data, backward=True):
