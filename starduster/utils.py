@@ -3,7 +3,7 @@ import torch
 from torch import nn
 
 
-__all__ = ["Evaluator", "fit", "merge_history", "load_module"]
+__all__ = ["Evaluator", "fit", "merge_history", "load_module", "create_mlp"]
 
 
 class Evaluator:
@@ -98,4 +98,15 @@ def load_module(fname, cls):
     module = cls(*checkpoint['params'])
     module.load_state_dict(checkpoint['model_state_dict'])
     return module, checkpoint
+
+
+def create_mlp(input_size, layer_sizes, activations):
+    modules = []
+    size_in = input_size
+    for size_out, act in zip(layer_sizes, activations):
+        modules.append(nn.Linear(size_in, size_out))
+        if act is not None:
+            modules.append(act)
+        size_in = size_out
+    return nn.Sequential(*modules)
 
