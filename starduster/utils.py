@@ -13,6 +13,7 @@ class Evaluator:
         self.loss = loss
         self.labels = ("loss",) if labels is None else labels
         self.scheduler = scheduler
+        self.n_out = len(self.labels)
 
 
     def loss_func(self, *args):
@@ -20,7 +21,10 @@ class Evaluator:
             x, = args
             return self.loss(self.model(x), x)
         else:
-            x, y = args[:-1], args[-1]
+            x = args[:-self.n_out]
+            x = x[0] if len(x) == 1 else x
+            y = args[-self.n_out:]
+            y = y[0] if len(y) == 1 else y
             return self.loss(self.model(x), y)
 
 
