@@ -1,4 +1,4 @@
-from .utils import create_mlp
+from .modules import create_mlp
 
 import torch
 from torch import nn

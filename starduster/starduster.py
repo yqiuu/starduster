@@ -1,45 +1,6 @@
-from .utils import create_mlp, reduce_loss
+from .modules import Monotonic, Unimodal, Smooth, create_mlp
 
-import torch
 from torch import nn
-from torch.nn import functional as F
-
-
-class Monotonic(nn.Module):
-    def __init__(self, increase=True):
-        super().__init__()
-        self.increase = increase
-
-
-    def forward(self, x_in):
-        x = F.softplus(x_in)
-        x = torch.cumsum(x, dim=1)/x.size(1)
-        if self.increase:
-            return x - x[:, None, 0]
-        else:
-            return -x + x[:, None, -1]
-
-
-class Unimodal(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.increase = Monotonic(increase=True)
-        self.decrease = Monotonic(increase=False)
-
-
-    def forward(self, x_in):
-        return self.increase(x_in)*self.decrease(x_in)
-
-
-class Smooth(nn.Module):
-    def __init__(self, kernel_size):
-        super().__init__()
-        self.kernel_size = kernel_size
-
-
-    def forward(self, x_in):
-        x = F.avg_pool1d(x_in[:, None, :], self.kernel_size, 1)
-        return x[:, 0, :]
 
 
 class AttenuationCurve(nn.Module):

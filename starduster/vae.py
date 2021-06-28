@@ -1,4 +1,4 @@
-from .utils import Evaluator
+from .evaluator import Evaluator
 
 import torch
 from torch import nn
