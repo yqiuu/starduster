@@ -3,7 +3,9 @@ import torch
 from torch import nn
 
 
-__all__ = ["Evaluator", "fit", "merge_history", "load_module", "create_mlp"]
+__all__ = [
+    "Evaluator", "fit", "merge_history", "load_module", "create_mlp", "reduce_loss", "LInfLoss"
+]
 
 
 class Evaluator:
@@ -113,4 +115,26 @@ def create_mlp(input_size, layer_sizes, activations):
             modules.append(act)
         size_in = size_out
     return nn.Sequential(*modules)
+
+
+def reduce_loss(loss, reduction):
+    if reduction is 'mean':
+        return torch.mean(loss)
+    elif reduce_loss is 'sum':
+        return torch.sum(loss)
+    elif reduce_loss is 'none':
+        return loss
+    else:
+        raise ValueError("Invalid reduction: {}".format(reduction))
+
+
+class LInfLoss(nn.Module):
+    def __init__(self, reduction='mean'):
+        super().__init__()
+        self.reduction = reduction
+
+
+    def forward(self, y_true, y_pred):
+        loss = torch.linalg.norm(y_pred - y_true, ord=float('inf'), dim=1)
+        return reduce_loss(loss, self.reduction)
 
