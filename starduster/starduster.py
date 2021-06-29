@@ -1,5 +1,6 @@
 from .modules import Monotonic, Unimodal, Smooth, create_mlp
 
+import torch
 from torch import nn
 
 
@@ -31,4 +32,16 @@ class AttenuationCurve(nn.Module):
         for i_bump, (idx_b, idx_e) in enumerate(self.bump_inds):
             y[:, idx_b:idx_e] += getattr(self, 'bump{}'.format(i_bump))(x)
         return y
+
+
+class AttenuationFraction(nn.Module):
+    def __init__(self, input_size, hidden_sizes, activations, dropout=0.):
+        super().__init__()
+        self.mlp = create_mlp(input_size, hidden_sizes, activations)
+        if dropout > 0:
+            self.mlp.add_module('dropout', nn.Dropout(dropout))
+
+
+    def forward(self, x_in):
+        return torch.sum(self.mlp(x_in[0])*x_in[1], dim=1)
 
