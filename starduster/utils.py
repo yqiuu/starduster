@@ -2,7 +2,7 @@ import numpy as np
 import torch
 
 
-__all__ = ["merge_history", "load_module"]
+__all__ = ["merge_history", "load_module", "search_inds"]
 
 
 def merge_history(history1, history2):
@@ -24,4 +24,9 @@ def load_module(fname, cls):
     module = cls(*checkpoint['params'])
     module.load_state_dict(checkpoint['model_state_dict'])
     return module, checkpoint
+
+
+def search_inds(x, a, b):
+    "Find the indices of x that are closest to the given points."
+    return np.argmin(np.abs(x - a)), np.argmin(np.abs(x - b)) + 1
 
