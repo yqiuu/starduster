@@ -25,14 +25,16 @@ class Monotonic(nn.Module):
 
 
 class Unimodal(nn.Module):
-    def __init__(self):
+    def __init__(self, input_size, output_size):
         super().__init__()
+        self.lin1 = nn.Linear(input_size, output_size)
+        self.lin2 = nn.Linear(input_size, output_size)
         self.increase = Monotonic(increase=True)
         self.decrease = Monotonic(increase=False)
 
 
     def forward(self, x_in):
-        return self.increase(x_in)*self.decrease(x_in)
+        return self.increase(self.lin1(x_in))*self.decrease(self.lin2(x_in))
 
 
 class Smooth(nn.Module):

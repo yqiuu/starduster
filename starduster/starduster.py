@@ -18,8 +18,7 @@ class AttenuationCurve(nn.Module):
         )
         for i_bump, (idx_b, idx_e) in enumerate(bump_inds):
             seq = nn.Sequential(
-                nn.Linear(hidden_sizes[-1], idx_e - idx_b + bump_kernel_size - 1),
-                Unimodal(),
+                Unimodal(hidden_sizes[-1], idx_e - idx_b + bump_kernel_size - 1),
                 Smooth(bump_kernel_size)
             )
             setattr(self, 'bump{}'.format(i_bump), seq)
