@@ -59,9 +59,9 @@ class LInfLoss(nn.Module):
 def reduce_loss(loss, reduction):
     if reduction is 'mean':
         return torch.mean(loss)
-    elif reduce_loss is 'sum':
+    elif reduction is 'sum':
         return torch.sum(loss)
-    elif reduce_loss is 'none':
+    elif reduction is 'none':
         return loss
     else:
         raise ValueError("Invalid reduction: {}".format(reduction))
