@@ -4,7 +4,8 @@ from torch.nn import functional as F
 
 
 __all__ = [
-    "LInfLoss", "Monotonic", "Unimodal", "Smooth", "create_mlp", "reduce_loss"
+    "Monotonic", "Unimodal", "Smooth", "create_mlp",
+    "LInfLoss", "CrossEntropy", "reduce_loss"
 ]
 
 
@@ -45,6 +46,17 @@ class Smooth(nn.Module):
         return x[:, 0, :]
 
 
+def create_mlp(input_size, layer_sizes, activations):
+    modules = []
+    size_in = input_size
+    for size_out, act in zip(layer_sizes, activations):
+        modules.append(nn.Linear(size_in, size_out))
+        if act is not None:
+            modules.append(act)
+        size_in = size_out
+    return nn.Sequential(*modules)
+
+
 class LInfLoss(nn.Module):
     def __init__(self, reduction='mean'):
         super().__init__()
@@ -53,6 +65,19 @@ class LInfLoss(nn.Module):
 
     def forward(self, y_true, y_pred):
         loss = torch.linalg.norm(y_pred - y_true, ord=float('inf'), dim=1)
+        return reduce_loss(loss, self.reduction)
+
+
+class CrossEntropy(nn.Module):
+    def __init__(self, dx, eps=1e-20, reduction='mean'):
+        super().__init__()
+        self.dx = dx
+        self.eps = eps
+        self.reduction = reduction
+
+
+    def __call__(self, y_pred, y_true):
+        loss = -torch.trapz(y_true*torch.log((y_pred + self.eps)/y_true), dx=self.dx)
         return reduce_loss(loss, self.reduction)
 
 
@@ -65,15 +90,4 @@ def reduce_loss(loss, reduction):
         return loss
     else:
         raise ValueError("Invalid reduction: {}".format(reduction))
-
-
-def create_mlp(input_size, layer_sizes, activations):
-    modules = []
-    size_in = input_size
-    for size_out, act in zip(layer_sizes, activations):
-        modules.append(nn.Linear(size_in, size_out))
-        if act is not None:
-            modules.append(act)
-        size_in = size_out
-    return nn.Sequential(*modules)
 
