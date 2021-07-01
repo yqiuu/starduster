@@ -86,6 +86,10 @@ def reduce_loss(loss, reduction):
         return torch.mean(loss)
     elif reduction is 'sum':
         return torch.sum(loss)
+    elif reduction is 'square_mean':
+        return torch.mean(loss*loss)
+    elif reduction is 'square_sum':
+        return torch.sum(loss*loss)
     elif reduction is 'none':
         return loss
     else:
