@@ -2,7 +2,7 @@ import numpy as np
 import torch
 
 
-__all__ = ['Evaluator', 'fit']
+__all__ = ['Evaluator', 'validate']
 
 
 class Evaluator:
@@ -51,33 +51,47 @@ class Evaluator:
         return values, lr
 
 
-def fit(evaluator, dl_train, dl_valid, n_epochs=100):
-    history = {'epoch':[0]*n_epochs}
-    for name in evaluator.labels:
-        history[name] = [0]*n_epochs
-        history[f"{name}_val"] = [0]*n_epochs
+    def train(self, dl_train, dl_valid, n_epochs=100):
+        history = {'epoch':[0]*n_epochs}
+        for name in self.labels:
+            history[name] = [0]*n_epochs
+            history[f"{name}_val"] = [0]*n_epochs
 
-    history_train = [None]*n_epochs
-    history_valid = [None]*n_epochs
-    history_lr = [None]*n_epochs
-    for i_e in range(n_epochs):
-        history_train[i_e], history_lr[i_e] \
-            = evaluator.call(dl_train, backward=True)
-        history_valid[i_e], _ = evaluator.call(dl_valid, backward=False)
+        history_train = [None]*n_epochs
+        history_valid = [None]*n_epochs
+        history_lr = [None]*n_epochs
+        for i_e in range(n_epochs):
+            history_train[i_e], history_lr[i_e] \
+                = self.call(dl_train, backward=True)
+            history_valid[i_e], _ = self.call(dl_valid, backward=False)
 
-        msg = ["{}(val)={:.2e}({:.2e})".format(*values) for values in \
-            zip(evaluator.labels, history_train[i_e], history_valid[i_e])]
-        msg = "\repoch={}, ".format(i_e + 1) + ", ".join(msg)
-        print(msg, end="")
-    print()
+            msg = ["{}(val)={:.2e}({:.2e})".format(*values) for values in \
+                zip(self.labels, history_train[i_e], history_valid[i_e])]
+            msg = "\repoch={}, ".format(i_e + 1) + ", ".join(msg)
+            print(msg, end="")
+        print()
 
-    history = {}
-    history['epoch'] = np.arange(1, n_epochs + 1)
-    history['lr'] = np.asarray(history_lr)
-    for name, values in zip(evaluator.labels, zip(*history_train)):
-        history[name] = np.asarray(values)
-    for name, values in zip(evaluator.labels, zip(*history_valid)):
-        history[f"{name}_val"] = np.asarray(values)
+        history = {}
+        history['epoch'] = np.arange(1, n_epochs + 1)
+        history['lr'] = np.asarray(history_lr)
+        for name, values in zip(self.labels, zip(*history_train)):
+            history[name] = np.asarray(values)
+        for name, values in zip(self.labels, zip(*history_valid)):
+            history[f"{name}_val"] = np.asarray(values)
 
-    return history
+        return history
+
+
+def validate(model, metric, x, y_true, numpy=True):
+    model.eval()
+    with torch.no_grad():
+        y_pred = model(x)
+        err = metric(y_pred, y_true)
+        
+    if numpy:
+        y_pred = y_pred.cpu().numpy()
+        y_true = y_true.cpu().numpy()
+        err = err.cpu().numpy()
+        
+    return err, y_pred, y_true
 
