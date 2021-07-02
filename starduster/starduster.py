@@ -11,6 +11,10 @@ class AttenuationCurve(nn.Module):
     ):
         super().__init__()
         self.mlp = create_mlp(input_size, hidden_sizes, activations)
+        self.norm = nn.Sequential(
+            nn.Linear(hidden_sizes[-1], 1),
+            nn.Softplus()
+        )
         self.baseline = nn.Sequential(
             nn.Linear(hidden_sizes[-1], output_size + baseline_kernel_size - 1),
             Monotonic(increase=False),
@@ -30,6 +34,7 @@ class AttenuationCurve(nn.Module):
         y = self.baseline(x)
         for i_bump, (idx_b, idx_e) in enumerate(self.bump_inds):
             y[:, idx_b:idx_e] += getattr(self, 'bump{}'.format(i_bump))(x)
+        y = y*self.norm(x)/torch.mean(y, dim=1)[:, None]
         return y
 
 
