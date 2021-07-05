@@ -1,10 +1,11 @@
 import torch
 from torch import nn
 from torch.nn import functional as F
+from numpy import pi
 
 
 __all__ = [
-    "Monotonic", "Unimodal", "Smooth", "create_mlp",
+    "Monotonic", "Unimodal", "Smooth", "PlankianMixture", "Forest", "create_mlp",
     "LInfLoss", "CrossEntropy", "reduce_loss"
 ]
 
@@ -46,6 +47,42 @@ class Smooth(nn.Module):
     def forward(self, x_in):
         x = F.avg_pool1d(x_in[:, None, :], self.kernel_size, 1)
         return x[:, 0, :]
+
+
+class PlankianMixture(nn.Module):
+    def __init__(self, input_size, n_mix, x):
+        super().__init__()
+        self.lin_mu = nn.Linear(input_size, n_mix)
+        self.lin_w = nn.Linear(input_size, n_mix)
+        self.const = 15/pi**4
+        self.x_inv = 1./x
+
+
+    def plank(self, mu):
+        y = self.x_inv*mu[:, :, None]
+        f = torch.exp(-y)
+        return self.const*y**4*f/(1 - f)
+
+
+    def forward(self, x_in):
+        mu = torch.cumsum(torch.exp(self.lin_mu(x_in)), dim=1)
+        w = F.softmax(self.lin_w(x_in), dim=1)
+        return torch.sum(self.plank(mu)*w[:, :, None], dim=1)
+
+
+class Forest(nn.Module):
+    def __init__(self, input_size, forest_size, dx):
+        super().__init__()
+        self.lin_pos = nn.Linear(input_size, forest_size)
+        self.lin_neg = nn.Linear(input_size, forest_size)
+        self.dx = dx
+
+
+    def forward(self, x_in, continuum):
+        f_pos = torch.exp(self.lin_pos(x_in))
+        f_pos = f_pos/torch.trapz(f_pos, dx=self.dx)[:, None]
+        f_neg = -torch.sigmoid(self.lin_neg(x_in))*continuum
+        return -torch.trapz(f_neg, dx=self.dx)[:, None]*f_pos + f_neg
 
 
 def create_mlp(input_size, layer_sizes, activations):
