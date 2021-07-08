@@ -1,4 +1,4 @@
-from .modules import Monotonic, Unimodal, Smooth, create_mlp
+from .modules import Monotonic, Unimodal, Smooth, create_mlp, PlankianMixture
 
 import torch
 from torch import nn
@@ -52,58 +52,64 @@ class AttenuationFraction(nn.Module):
 
 class EmissionDistribution(nn.Module):
     def __init__(self,
-        forest_inds, input_size, output_size, hidden_sizes, activations,
-        channels, kernel_size, dx, eps=1e-20
+        input_size, output_size, hidden_sizes, activations, n_mix, x, dx, eps=1e-20
     ):
         super().__init__()
         self.mlp = create_mlp(input_size, hidden_sizes, activations)
-        self.continuum = nn.Sequential(
-            nn.Unflatten(1, (1, hidden_sizes[-1])),
-            nn.Conv1d(
-                in_channels=1,
-                out_channels=channels,
-                kernel_size=kernel_size,
-                padding=(kernel_size - 1)//2,
-                padding_mode='replicate',
-                bias=False
-            ),
-            nn.BatchNorm1d(channels),
-            nn.Upsample(output_size, mode='linear', align_corners=False),
-            nn.Conv1d(
-                in_channels=channels,
-                out_channels=1,
-                kernel_size=kernel_size,
-                padding=(kernel_size - 1)//2,
-                padding_mode='replicate',
-                bias=False
-            ),
-            nn.Flatten(),
-            nn.Softplus()
-        )
-        self.forest = nn.Sequential(
-            nn.Linear(hidden_sizes[-1], forest_inds[1] - forest_inds[0]),
-            nn.Softplus()
-        )
-        self.forest_slice = slice(*forest_inds)
+        self.continuum = PlankianMixture(hidden_sizes[-1], n_mix, x)
+        self.zero = TransitionLinear(hidden_sizes[-1], output_size, dx)
+        self.res_net =ResNet(output_size, 128, dx)
         self.dx = dx
         self.eps = eps
 
 
-    def components(self, x_in, combine=True):
-        x = self.mlp(x_in)
-        continuum = self.continuum(x)
-        forest = torch.zeros_like(continuum)
-        forest[:, self.forest_slice] = self.forest(x)
-        y = continuum + forest
-        norm = torch.trapz(y, dx=self.dx) + self.eps
-        y /= norm[:, None]
-        if combine:
-            return y
-        else:
-            continuum /= norm[:, None]
-            forest /= norm[:, None]
-            return y, continuum, forest
+    def forward_base(self, x):
+        z = self.mlp(x)
+        y = self.continuum(z)
+        y = y/torch.trapz(y, dx=self.dx)[:, None] + self.eps
+        y_fix = self.zero(z, y)
+        return y, y_fix
+    
+
+    def forward(self, x):
+        y, y_fix = self.forward_base(x)
+        y = self.res_net(y + y_fix)
+        return y
 
 
-    def forward(self, x_in):
-        return self.components(x_in)
+class TransitionLinear(nn.Module):
+    def __init__(self, input_size, output_size, dx):
+        super().__init__()
+        self.seq_pos = nn.Sequential(
+            nn.Linear(input_size, output_size),
+            nn.Softplus()
+        )
+        self.seq_neg = nn.Sequential(
+            nn.Linear(input_size, output_size),
+            nn.Sigmoid()
+        )
+        self.dx = dx
+
+
+    def forward(self, x, budget):
+        z_pos = self.seq_pos(x)
+        z_pos = z_pos/torch.trapz(z_pos, dx=self.dx)[:, None]
+        z_neg = -self.seq_neg(x)*budget
+        y = -torch.trapz(z_neg, dx=self.dx)[:, None]*z_pos + z_neg
+        return y
+
+
+
+class ResNet(nn.Module):
+    def __init__(self, output_size, hidden_size, dx):
+        super().__init__()
+        self.lin = nn.Linear(output_size, hidden_size, bias=False)
+        self.zero = TransitionLinear(hidden_size, output_size, dx)
+
+
+    def forward(self, x):
+        z = self.lin(x)
+        y = self.zero(z, x) + x
+        return y
+
+
