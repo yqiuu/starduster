@@ -1,4 +1,5 @@
 from .starduster import *
+from .dust_emission import *
 from .utils import *
 from .evaluator import *
 from .pipline import *
