@@ -4,6 +4,35 @@ import torch
 from torch import nn
 
 
+class AttenuationFractionSub(nn.Module):
+    def __init__(self, input_size, hidden_sizes, activations, dropout=0.):
+        super().__init__()
+        self.mlp = create_mlp(input_size, hidden_sizes, activations)
+        if dropout > 0:
+            self.mlp.add_module('dropout', nn.Dropout(dropout))
+
+
+    def forward(self, x_in):
+        return torch.sum(self.mlp(x_in[0])*x_in[1], dim=1)
+
+
+class AttenuationFraction(nn.Module):
+    def __init__(self, lookup, frac_disk, frac_bulge, ):
+        super().__init__()
+        self.lookup = lookup
+        self.frac_disk = frac_disk
+        self.frac_bulge = frac_bulge
+
+
+    def forward(self, x_in):
+        x, lum_disk, lum_bulge = x_in
+        b2t = .5*(x[:, self.lookup['b_o_t']] + 1) # Convert to range [0, 1]
+        f_disk = self.frac_disk((x[:, self.lookup['frac_disk_inds']], lum_disk))
+        f_bulge = self.frac_bulge((x[:, self.lookup['frac_bulge_inds']], lum_bulge))
+        frac = f_disk*(1 - b2t) + f_bulge*b2t
+        return frac
+
+
 class EmissionDistribution(nn.Module):
     def __init__(self,
         input_size, output_size, hidden_sizes, activations,
