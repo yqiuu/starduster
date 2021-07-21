@@ -6,13 +6,13 @@ __all__ = ['Evaluator', 'validate']
 
 
 class Evaluator:
-    def __init__(self, model, opt, loss, labels=None, scheduler=None):
+    def __init__(self, model, opt, loss, labels=None, scheduler=None, n_out=1):
         self.model = model
         self.opt = opt
         self.loss = loss
         self.labels = ("loss",) if labels is None else labels
         self.scheduler = scheduler
-        self.n_out = len(self.labels)
+        self.n_out = n_out
 
 
     def loss_func(self, *args):
