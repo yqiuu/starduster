@@ -2,7 +2,7 @@ import numpy as np
 import torch
 
 
-__all__ = ["merge_history", "load_module", "search_inds"]
+__all__ = ["merge_history", "load_model", "search_inds"]
 
 
 def merge_history(history1, history2):
@@ -19,11 +19,11 @@ def merge_history(history1, history2):
     return history
 
 
-def load_module(fname, cls):
+def load_model(fname, init):
     checkpoint = torch.load(fname)
-    module = cls(*checkpoint['params'])
-    module.load_state_dict(checkpoint['model_state_dict'])
-    return module, checkpoint
+    model = init(*checkpoint['params'])
+    model.load_state_dict(checkpoint['model_state_dict'])
+    return model, checkpoint
 
 
 def search_inds(x, a, b):
