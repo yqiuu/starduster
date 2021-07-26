@@ -87,7 +87,7 @@ class TransferVector(nn.Module):
         super().__init__()
         self.lin_neg = nn.Linear(input_size, output_size)
         self.lin_pos = nn.Linear(input_size, output_size)
-        self.weights = weights
+        self.register_buffer('weights', weights)
         self.dx = dx
 
 
