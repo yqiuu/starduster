@@ -55,7 +55,7 @@ class PlankianMixture(nn.Module):
         self.lin_mu = nn.Linear(input_size, n_mix)
         self.lin_w = nn.Linear(input_size, n_mix)
         self.const = 15/pi**4
-        self.x_inv = 1./x
+        self.register_buffer('x_inv', 1./x)
 
 
     def plank(self, mu):
