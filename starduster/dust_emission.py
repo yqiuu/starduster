@@ -118,3 +118,10 @@ class LossDE(nn.Module):
         )
         return l_distri + l_frac, l_distri, l_frac
 
+
+def init_dust_emission_fit(lookup, kwargs_distri, kwargs_frac_disk, kwargs_frac_bulge):
+    distri = EmissionDistribution(**kwargs_distri)
+    frac_disk = AttenuationFractionSub(**kwargs_frac_disk)
+    frac_bulge = AttenuationFractionSub(**kwargs_frac_bulge)
+    return DustEmissionFit(lookup, distri, frac_disk, frac_bulge)
+
