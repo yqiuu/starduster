@@ -5,8 +5,8 @@ from numpy import pi
 
 
 __all__ = [
-    "Monotonic", "Unimodal", "Smooth", "PlankianMixture", "Forest", "create_mlp",
-    "LInfLoss", "CrossEntropy", "reduce_loss"
+    "Monotonic", "Unimodal", "Smooth", "PlankianMixture", "Forest", "LInfLoss",
+    "CrossEntropy", "create_mlp", "kld_trapz", "kld_binary", "reduce_loss"
 ]
 
 
@@ -85,17 +85,6 @@ class Forest(nn.Module):
         return -torch.trapz(f_neg, dx=self.dx)[:, None]*f_pos + f_neg
 
 
-def create_mlp(input_size, layer_sizes, activations):
-    modules = []
-    size_in = input_size
-    for size_out, act in zip(layer_sizes, activations):
-        modules.append(nn.Linear(size_in, size_out))
-        if act is not None:
-            modules.append(act)
-        size_in = size_out
-    return nn.Sequential(*modules)
-
-
 class LInfLoss(nn.Module):
     def __init__(self, reduction='mean'):
         super().__init__()
@@ -118,6 +107,30 @@ class CrossEntropy(nn.Module):
     def __call__(self, y_pred, y_true):
         loss = -torch.trapz(y_true*torch.log((y_pred + self.eps)/y_true), dx=self.dx)
         return reduce_loss(loss, self.reduction)
+
+
+def create_mlp(input_size, layer_sizes, activations):
+    modules = []
+    size_in = input_size
+    for size_out, act in zip(layer_sizes, activations):
+        modules.append(nn.Linear(size_in, size_out))
+        if act is not None:
+            modules.append(act)
+        size_in = size_out
+    return nn.Sequential(*modules)
+
+
+def kld_trapz(a_pred, a_true, dx, eps=1e-10):
+    """Compute KL divergence using the trapezoidal rule."""
+    return -torch.trapz(a_true*torch.log((a_pred + eps)/a_true), dx=dx)
+
+
+def kld_binary(a_pred, a_true, eps=1e-10):
+    """Compute binary KL divergence."""
+    a_pred = F.hardtanh(a_pred, eps, 1 - eps)
+    b_pred = 1 - a_pred
+    b_true = 1 - a_true
+    return -a_true*torch.log(a_pred/a_true) - b_true*torch.log(b_pred/b_true)
 
 
 def reduce_loss(loss, reduction):
