@@ -5,30 +5,46 @@ from torch import nn
 
 
 class AttenuationFractionSub(nn.Module):
-    def __init__(self, input_size, hidden_sizes, activations, dropout=0.):
+    def __init__(self, input_size, hidden_sizes, activations, dropout=0., sed=False):
         super().__init__()
         self.mlp = create_mlp(input_size, hidden_sizes, activations)
-        if dropout > 0:
+        if not sed and dropout > 0:
             self.mlp.add_module('dropout', nn.Dropout(dropout))
+        self.sed = sed
 
 
     def forward(self, x_in):
-        return torch.sum(self.mlp(x_in[0])*x_in[1], dim=1)
+        if self.sed:
+            return torch.sum(self.mlp(x_in[0][:, None, :])*x_in[1], dim=-1)
+        else:
+            return torch.sum(self.mlp(x_in[0])*x_in[1], dim=-1)
 
 
-class DustEmissionFit(nn.Module):
-    def __init__(self, lookup, distri, frac_disk, frac_bulge):
+class DustEmission(nn.Module):
+    def __init__(self, lookup, distri, frac_disk, frac_bulge, L_ssp=None):
         super().__init__()
         self.lookup = lookup
         self.distri = distri
         self.frac_disk = frac_disk
         self.frac_bulge = frac_bulge
+        if L_ssp is None:
+            self.L_ssp = L_ssp
+        else:
+            frac_disk.sed = True
+            frac_bulge.sed = True
+            self.register_buffer('L_ssp', L_ssp)
 
 
-    def _fraction(self, x, lum_disk, lum_bulge):
+    def _fraction(self, x, y_disk, y_bulge):
         b2t = .5*(x[:, self.lookup['b_o_t']] + 1) # Convert to range [0, 1]
-        frac_disk = self.frac_disk((x[:, self.lookup['frac_disk_inds']], lum_disk))
-        frac_bulge = self.frac_bulge((x[:, self.lookup['frac_bulge_inds']], lum_bulge))
+        x_disk = x[:, self.lookup['frac_disk_inds']]
+        x_bulge = x[:, self.lookup['frac_bulge_inds']]
+        if self.L_ssp is None:
+            frac_disk = self.frac_disk((x_disk, y_disk))
+            frac_bulge = self.frac_bulge((x_bulge, y_bulge))
+        else:
+            frac_disk = torch.sum(y_disk*self.frac_disk((x_disk, self.L_ssp)), dim=-1)
+            frac_bulge = torch.sum(y_bulge*self.frac_bulge((x_bulge, self.L_ssp)), dim=-1)
         frac = (frac_disk*(1 - b2t) + frac_bulge*b2t)[:, None]
         return frac, frac_disk, frac_bulge
 
@@ -119,9 +135,15 @@ class LossDE(nn.Module):
         return l_distri + l_frac, l_distri, l_frac
 
 
-def init_dust_emission_fit(lookup, kwargs_distri, kwargs_frac_disk, kwargs_frac_bulge):
-    distri = EmissionDistribution(**kwargs_distri)
-    frac_disk = AttenuationFractionSub(**kwargs_frac_disk)
-    frac_bulge = AttenuationFractionSub(**kwargs_frac_bulge)
-    return DustEmissionFit(lookup, distri, frac_disk, frac_bulge)
+def init_dust_emission(fname, L_ssp=None):
+    checkpoint = torch.load(fname)
+    if L_ssp is not None:
+        checkpoint['model_state_dict']['L_ssp'] = L_ssp
+    lookup, kwargs_distri, kwargs_frac_disk, kwargs_frac_bulge = checkpoint['params']
+    distri = EmissionDistribution(**kwargs_distri)                                                  
+    frac_disk = AttenuationFractionSub(**kwargs_frac_disk)                                          
+    frac_bulge = AttenuationFractionSub(**kwargs_frac_bulge) 
+    model = DustEmission(lookup, distri, frac_disk, frac_bulge, L_ssp=L_ssp)
+    model.load_state_dict(checkpoint['model_state_dict'])
+    return model, checkpoint
 
