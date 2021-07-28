@@ -55,9 +55,9 @@ class DustAttenuation(nn.Module):
         l_disk = torch.matmul(sfh_disk, self.l_ssp)
         l_bulge = torch.matmul(sfh_bulge, self.l_ssp)
         trans_disk = torch.ones_like(l_disk)
-        trans_disk[:, self.lookup['slice_da']] = 10**(-.4*self.curve_disk(x_disk))
+        trans_disk[:, self.lookup['slice_lam_da']] = 10**(-.4*self.curve_disk(x_disk))
         trans_bulge = torch.ones_like(l_bulge)
-        trans_bulge[:, self.lookup['slice_da']] = 10**(-.4*self.curve_bulge(x_bulge))
+        trans_bulge[:, self.lookup['slice_lam_da']] = 10**(-.4*self.curve_bulge(x_bulge))
         l_tot = l_disk*trans_disk*(1 - b2t) + l_bulge*trans_bulge*b2t
         return l_tot
 
