@@ -5,11 +5,36 @@ from torch import nn
 
 
 class CompositeSED(nn.Module):
-    def __init__(self, helper, dust_attenuation, dust_emission):
+    """Primary module to compute multiwavelength SEDs
+
+    Parameters
+    ----------
+    helper
+    dust_attenuation : module
+        Dust attenuation module.
+    dust_emission : module
+        Dust emission module.
+    lam : tensor [AA]
+        Wavelength of the resulting SEDs.
+    z : float
+        Redshift.
+    filters : array
+        An array of pyphot filter instances.
+    """
+    def __init__(self, helper, dust_attenuation, dust_emission, lam, z=0., filters=None):
         super().__init__()
         self.helper = helper
         self.dust_attenuation = dust_attenuation
         self.dust_emission = dust_emission
+        #
+        lam = (1. + z)*lam
+        if filters is None:
+            self.filter_set = None
+            self.register_buffer('lam', lam)
+        else:
+            self.filter_set = FilterSet(filters, lam)
+            self.lam = torch.tensor([f.lpivot.value for f in filters], dtype=torch.float32)
+        self.z = z
         
         
     def forward(self, x_in):
@@ -17,7 +42,41 @@ class CompositeSED(nn.Module):
         l_dust_slice, frac = self.dust_emission(x_in)
         l_dust = self.helper.set_item(torch.zeros_like(l_main), 'slice_lam_de', l_dust_slice)
         l_tot = l_main + frac*l_dust
-        return l_tot
+        if self.filter_set is None:
+            return l_tot
+        else:
+            return self.filter_set(l_tot)
+
+
+class FilterSet(nn.Module):
+    """Apply filters to the input fluxes.
+    
+    Parameters
+    ----------
+    filters : array
+        An array of pyphot filter instances.
+    lam : tensor [AA]
+        Wavelength of the input fluxes.
+    """
+    def __init__(self, filters, lam):
+        super().__init__()
+        trans_filter = np.zeros([len(filters), len(lam)])
+        for i_f, f in enumerate(filters):
+            lam_f = f.wavelength.value
+            trans_f = f.transmit/np.trapz(lam_f*f.transmit, lam_f)
+            trans_filter[i_f] = np.interp(lam, lam_f, trans_f)
+        self.register_buffer('trans_filter', torch.tensor(trans_filter, dtype=torch.float32))
+        self.register_buffer('lam', lam)
+        
+        
+    def forward(self, l_target):
+        """
+        Parameters
+        ----------
+        l_target : tensor [?]
+            Generalized flux density (nu*f_nu).
+        """
+        return torch.trapz(l_target[:, None, :]*self.trans_filter, self.lam)
 
 
 class Helper:
