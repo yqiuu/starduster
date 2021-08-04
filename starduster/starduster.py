@@ -1,5 +1,6 @@
 import numpy as np
 from astropy import units as U
+from astropy import constants
 import torch
 from torch import nn
 
@@ -16,40 +17,38 @@ class CompositeSED(nn.Module):
         Dust emission module.
     lam : tensor [AA]
         Wavelength of the resulting SEDs.
-    z : float
-        Redshift.
-    filters : array
-        An array of pyphot filter instances.
+    converter : module
+        Converter.
     """
-    def __init__(self, helper, dust_attenuation, dust_emission, lam, z=0., filters=None):
+    def __init__(self, helper, dust_attenuation, dust_emission, converter):
         super().__init__()
         self.helper = helper
         self.dust_attenuation = dust_attenuation
         self.dust_emission = dust_emission
-        #
-        lam = (1. + z)*lam
-        if filters is None:
-            self.filter_set = None
-            self.register_buffer('lam', lam)
-        else:
-            self.filter_set = FilterSet(filters, lam)
-            self.lam = torch.tensor([f.lpivot.value for f in filters], dtype=torch.float32)
-        self.z = z
+        self.converter = converter
+        self.lam = converter.lam
+        self.lam_pivot = converter.lam_pivot
+        self.return_ph = self.lam_pivot is not None
         
         
     def forward(self, x_in):
         l_main = self.dust_attenuation(x_in)
         l_dust_slice, frac = self.dust_emission(x_in)
         l_dust = self.helper.set_item(torch.zeros_like(l_main), 'slice_lam_de', l_dust_slice)
-        l_tot = l_main + frac*l_dust
-        if self.filter_set is None:
-            return l_tot
-        else:
-            return self.filter_set(l_tot)
+        l_norm = self.helper.recover(x_in[0], 'l_norm')[:, None]
+        l_tot = l_norm*(l_main + frac*l_dust)
+        return self.converter(l_tot, self.return_ph)
 
 
-class FilterSet(nn.Module):
-    """Apply filters to the input fluxes.
+    def predict(self, x_in, return_ph=False):
+        self.return_ph = return_ph
+        retval = self(x_in)
+        self.return_ph = self.lam_pivot is not None
+        return retval
+
+
+class Converter(nn.Module):
+    """Apply unit conversion and filters to the input fluxes.
     
     Parameters
     ----------
@@ -58,32 +57,49 @@ class FilterSet(nn.Module):
     lam : tensor [AA]
         Wavelength of the input fluxes.
     """
-    def __init__(self, filters, lam):
+    def __init__(self, lam, distmod=0., z=0., filters=None):
         super().__init__()
-        trans_filter = np.zeros([len(filters), len(lam)])
-        for i_f, f in enumerate(filters):
-            lam_f = f.wavelength.value
-            trans_f = f.transmit/np.trapz(lam_f*f.transmit, lam_f)
-            trans_filter[i_f] = np.interp(lam, lam_f, trans_f)
-        self.register_buffer('trans_filter', torch.tensor(trans_filter, dtype=torch.float32))
+        self._set_unit()
+        lam = lam*(1 + z)
+        if filters is None:
+            self.lam_pivot = None
+        else:
+            trans_filter = np.zeros([len(filters), len(lam)])
+            for i_f, f in enumerate(filters):
+                unit_factor = self.unit_nu_f_nu/f.AB_zero_flux
+                lam_f = f.wavelength.value
+                trans_f = f.transmit/np.trapz(lam_f*f.transmit, lam_f)*unit_factor
+                trans_filter[i_f] = np.interp(lam, lam_f, trans_f)
+            lam_pivot = torch.tensor([f.lpivot.value for f in filters], dtype=torch.float32)
+            self.register_buffer('trans_filter', torch.tensor(trans_filter, dtype=torch.float32))
+            self.register_buffer('lam_pivot', lam_pivot)
         self.register_buffer('lam', lam)
-        
-        
-    def forward(self, l_target):
+
+
+    def forward(self, l_target, return_ph):
         """
         Parameters
         ----------
         l_target : tensor [?]
             Generalized flux density (nu*f_nu).
         """
-        return torch.trapz(l_target[:, None, :]*self.trans_filter, self.lam)
+        if return_ph:
+            return -2.5*torch.log10(torch.trapz(l_target[:, None, :]*self.trans_filter, self.lam))
+        else:
+            return l_target*self.lam*self.unit_f_nu
+
+
+    def _set_unit(self):
+        unit_nu_f_nu = U.solLum/(4*np.pi*(10*U.parsec)**2)
+        unit_f_nu = unit_nu_f_nu/(constants.c/U.angstrom)
+        self.unit_nu_f_nu = unit_nu_f_nu.to(U.erg/U.second/U.cm**2).value
+        self.unit_f_nu = unit_f_nu.to(U.jansky).value
 
 
 class Helper:
     def __init__(self, header, lookup):
         self.header = header
         self.lookup = lookup
-        self.unit_l_norm = U.solLum.to(U.erg/U.second)/(4*np.pi*(10*U.parsec.to(U.cm))**2)
 
 
     def get_item(self, target, key):
