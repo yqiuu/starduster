@@ -65,14 +65,11 @@ class Converter(nn.Module):
             self.lam_pivot = None
         else:
             trans_filter = np.zeros([len(filters), len(lam)])
-            for i_f, f in enumerate(filters):
-                unit_factor = self.unit_nu_f_nu/f.AB_zero_flux
-                lam_f = f.wavelength.value
-                trans_f = f.transmit/np.trapz(lam_f*f.transmit, lam_f)*unit_factor
-                trans_filter[i_f] = np.interp(lam, lam_f, trans_f)
-            lam_pivot = torch.tensor([f.lpivot.value for f in filters], dtype=torch.float32)
+            lam_pivot = np.zeros(len(filters))
+            for i_f, ftr in enumerate(filters):
+                lam_pivot[i_f], trans_filter[i_f] = self._set_transmission(ftr, lam)
             self.register_buffer('trans_filter', torch.tensor(trans_filter, dtype=torch.float32))
-            self.register_buffer('lam_pivot', lam_pivot)
+            self.register_buffer('lam_pivot', torch.tensor(lam_pivot, dtype=torch.float32))
         self.register_buffer('lam', lam)
 
 
@@ -89,11 +86,18 @@ class Converter(nn.Module):
             return l_target*self.lam*self.unit_f_nu
 
 
+    def _set_transmission(self, ftr, lam):
+        """The given flux should be in L_sol."""
+        lam_pivot = ftr.wave_pivot
+        trans = np.interp(lam, ftr.wavelength, ftr.transmission, left=0., right=0.)
+        trans = trans/np.trapz(trans/lam, lam)*self.unit_ab
+        return lam_pivot, trans
+
+
     def _set_unit(self):
-        unit_nu_f_nu = U.solLum/(4*np.pi*(10*U.parsec)**2)
-        unit_f_nu = unit_nu_f_nu/(constants.c/U.angstrom)
-        self.unit_nu_f_nu = unit_nu_f_nu.to(U.erg/U.second/U.cm**2).value
+        unit_f_nu = U.solLum/(4*np.pi*(10*U.parsec)**2)*U.angstrom/constants.c
         self.unit_f_nu = unit_f_nu.to(U.jansky).value
+        self.unit_ab = self.unit_f_nu/3631
 
 
 class Helper:
