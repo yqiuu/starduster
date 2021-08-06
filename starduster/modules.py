@@ -125,7 +125,7 @@ def kld_trapz(a_pred, a_true, dx, eps=1e-10):
     return -torch.trapz(a_true*torch.log((a_pred + eps)/a_true), dx=dx)
 
 
-def kld_binary(a_pred, a_true, eps=1e-10):
+def kld_binary(a_pred, a_true, eps=1e-6):
     """Compute binary KL divergence."""
     a_pred = F.hardtanh(a_pred, eps, 1 - eps)
     b_pred = 1 - a_pred

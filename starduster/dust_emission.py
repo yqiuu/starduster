@@ -116,10 +116,11 @@ class TransferVector(nn.Module):
 
 
 class LossDE(nn.Module):
-    def __init__(self, dx, eps=1e-10, reduction='mean'):
+    def __init__(self, dx, eps_trapz=1e-10, eps_binary=1e-6, reduction='mean'):
         super().__init__()
         self.dx = dx
-        self.eps = eps
+        self.eps_trapz = eps_trapz
+        self.eps_binary = eps_binary
         self.reduction = reduction
 
 
@@ -127,10 +128,10 @@ class LossDE(nn.Module):
         distri_pred, frac_pred = y_pred
         distri_true, frac_true = y_true
         l_distri = reduce_loss(
-            kld_trapz(distri_pred, distri_true, self.dx, self.eps), self.reduction
+            kld_trapz(distri_pred, distri_true, self.dx, self.eps_trapz), self.reduction
         )
         l_frac = reduce_loss(
-            kld_binary(frac_pred, frac_true, self.eps), self.reduction
+            kld_binary(frac_pred, frac_true, self.eps_binary), self.reduction
         )
         return l_distri + l_frac, l_distri, l_frac
 
