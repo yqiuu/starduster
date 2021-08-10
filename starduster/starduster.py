@@ -1,3 +1,7 @@
+from .utils import *
+
+import pickle
+
 import numpy as np
 from astropy import units as U
 from astropy import constants
@@ -98,6 +102,26 @@ class Converter(nn.Module):
         unit_f_nu = U.solLum/(4*np.pi*(10*U.parsec)**2)*U.angstrom/constants.c
         self.unit_f_nu = unit_f_nu.to(U.jansky).value
         self.unit_ab = self.unit_f_nu/3631
+
+
+class SSPLibrary(nn.Module):
+    def __init__(self, fname, log_lam, eps=5e-4):
+        lib_ssp = pickle.load(open(fname, "rb"))
+        lam_ssp = lib_ssp['lam']
+        log_lam_ssp = np.log(lam_ssp)
+        l_ssp_raw = lib_ssp['flx']/lib_ssp['norm']
+        l_ssp_raw.resize(l_ssp_raw.shape[0], l_ssp_raw.shape[1]*l_ssp_raw.shape[2])
+        l_ssp_raw = l_ssp_raw.T
+        l_ssp_raw *= lam_ssp
+        L_ssp = reduction(l_ssp_raw, log_lam_ssp, eps=eps)[0]
+        l_ssp = interp_arr(log_lam, log_lam_ssp, l_ssp_raw)
+
+        super().__init__()
+        self.register_buffer('tau', torch.tensor(lib_ssp['tau'], dtype=torch.float32))
+        self.register_buffer('met', torch.tensor(lib_ssp['met'], dtype=torch.float32))
+        self.register_buffer('log_lam', torch.tensor(log_lam, dtype=torch.float32))
+        self.register_buffer('l_ssp', torch.tensor(l_ssp, dtype=torch.float32))
+        self.register_buffer('L_ssp', torch.tensor(L_ssp, dtype=torch.float32))
 
 
 class Helper:
