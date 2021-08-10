@@ -36,6 +36,22 @@ class DustEmission(nn.Module):
             self.register_buffer('L_ssp', L_ssp)
 
 
+    @classmethod
+    def from_kwargs(cls, helper, kwargs_distri, kwargs_frac_disk, kwargs_frac_bulge, L_ssp=None):
+        distri = EmissionDistribution(**kwargs_distri)
+        frac_disk = AttenuationFractionSub(**kwargs_frac_disk)
+        frac_bulge = AttenuationFractionSub(**kwargs_frac_bulge)
+        return cls(helper, distri, frac_disk, frac_bulge, L_ssp=L_ssp)
+
+
+    def forward(self, x_in):
+        x, lum_disk, lum_bulge = x_in
+        frac, frac_disk, frac_bulge = self._fraction(x, lum_disk, lum_bulge)
+        x = torch.cat([x, frac_disk[:, None], frac_bulge[:, None]], dim=1)
+        l_dust = self.distri(x)
+        return l_dust, frac
+
+
     def _fraction(self, x, y_disk, y_bulge):
         b2t = self.helper.recover(x, 'b_o_t')
         x_disk = self.helper.get_item(x, 'frac_disk_inds')
@@ -48,14 +64,6 @@ class DustEmission(nn.Module):
             frac_bulge = torch.sum(y_bulge*self.frac_bulge((x_bulge, self.L_ssp)), dim=-1)
         frac = (frac_disk*(1 - b2t) + frac_bulge*b2t)[:, None]
         return frac, frac_disk, frac_bulge
-
-
-    def forward(self, x_in):
-        x, lum_disk, lum_bulge = x_in
-        frac, frac_disk, frac_bulge = self._fraction(x, lum_disk, lum_bulge)
-        x = torch.cat([x, frac_disk[:, None], frac_bulge[:, None]], dim=1)
-        l_dust = self.distri(x)
-        return l_dust, frac
 
 
 class EmissionDistribution(nn.Module):
@@ -112,17 +120,4 @@ class LossDE(nn.Module):
             kld_binary(frac_pred, frac_true, self.eps_binary), self.reduction
         )
         return l_distri + l_frac, l_distri, l_frac
-
-
-def init_dust_emission(fname, L_ssp=None):
-    checkpoint = torch.load(fname)
-    if L_ssp is not None:
-        checkpoint['model_state_dict']['L_ssp'] = L_ssp
-    lookup, kwargs_distri, kwargs_frac_disk, kwargs_frac_bulge = checkpoint['params']
-    distri = EmissionDistribution(**kwargs_distri)                                                  
-    frac_disk = AttenuationFractionSub(**kwargs_frac_disk)                                          
-    frac_bulge = AttenuationFractionSub(**kwargs_frac_bulge) 
-    model = DustEmission(lookup, distri, frac_disk, frac_bulge, L_ssp=L_ssp)
-    model.load_state_dict(checkpoint['model_state_dict'])
-    return model, checkpoint
 
