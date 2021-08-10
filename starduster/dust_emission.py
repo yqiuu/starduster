@@ -22,9 +22,9 @@ class AttenuationFractionSub(nn.Module):
 
 
 class DustEmission(nn.Module):
-    def __init__(self, lookup, distri, frac_disk, frac_bulge, L_ssp=None):
+    def __init__(self, helper, distri, frac_disk, frac_bulge, L_ssp=None):
         super().__init__()
-        self.lookup = lookup
+        self.helper = helper
         self.distri = distri
         self.frac_disk = frac_disk
         self.frac_bulge = frac_bulge
@@ -37,9 +37,9 @@ class DustEmission(nn.Module):
 
 
     def _fraction(self, x, y_disk, y_bulge):
-        b2t = .5*(x[:, self.lookup['b_o_t']] + 1) # Convert to range [0, 1]
-        x_disk = x[:, self.lookup['frac_disk_inds']]
-        x_bulge = x[:, self.lookup['frac_bulge_inds']]
+        b2t = self.helper.recover(x, 'b_o_t')
+        x_disk = self.helper.get_item(x, 'frac_disk_inds')
+        x_bulge = self.helper.get_item(x, 'frac_bulge_inds')
         if self.L_ssp is None:
             frac_disk = self.frac_disk((x_disk, y_disk))
             frac_bulge = self.frac_bulge((x_bulge, y_bulge))
