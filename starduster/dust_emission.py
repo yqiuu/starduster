@@ -9,7 +9,7 @@ class AttenuationFractionSub(nn.Module):
     def __init__(self, input_size, hidden_sizes, activations, dropout=0., sed=False):
         super().__init__()
         self.mlp = create_mlp(input_size, hidden_sizes, activations)
-        if not sed and dropout > 0:
+        if dropout > 0:
             self.mlp.add_module('dropout', nn.Dropout(dropout))
         self.sed = sed
 
@@ -37,7 +37,9 @@ class DustEmission(nn.Module):
 
 
     @classmethod
-    def from_args(cls, helper, kwargs_distri, kwargs_frac_disk, kwargs_frac_bulge, L_ssp=None):
+    def from_args(
+        cls, helper, kwargs_distri, kwargs_frac_disk, kwargs_frac_bulge, L_ssp=None
+    ):
         distri = EmissionDistribution(**kwargs_distri)
         frac_disk = AttenuationFractionSub(**kwargs_frac_disk)
         frac_bulge = AttenuationFractionSub(**kwargs_frac_bulge)
@@ -45,10 +47,13 @@ class DustEmission(nn.Module):
 
 
     @classmethod
-    def from_checkpoint(cls, fname, L_ssp=None):
+    def from_checkpoint(cls, fname, L_ssp=None, no_dropout=True):
         checkpoint = torch.load(fname)
         if L_ssp is not None:
             checkpoint['model_state_dict']['L_ssp'] = L_ssp
+        if no_dropout:
+            checkpoint['params'][2]['dropout'] = 0.
+            checkpoint['params'][3]['dropout'] = 0.
         model = cls.from_args(*checkpoint['params'], L_ssp=L_ssp)
         model.load_state_dict(checkpoint['model_state_dict'])
         return model
