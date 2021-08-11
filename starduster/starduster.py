@@ -1,4 +1,6 @@
 from .utils import *
+from .dust_attenuation import AttenuationCurve, DustAttenuation
+from .dust_emission import DustEmission
 
 import pickle
 
@@ -33,7 +35,16 @@ class CompositeSED(nn.Module):
         self.lam = converter.lam
         self.lam_pivot = converter.lam_pivot
         self.return_ph = self.lam_pivot is not None
-        
+
+
+    @classmethod
+    def from_checkpoint(cls, helper, lib_ssp, converter, fname_da_disk, fname_da_bulge, fname_de):
+        curve_disk, _ = load_model(fname_da_disk, AttenuationCurve)
+        curve_bulge, _ = load_model(fname_da_bulge, AttenuationCurve)
+        dust_attenuation = DustAttenuation(helper.lookup, curve_disk, curve_bulge, lib_ssp.l_ssp)
+        dust_emission = DustEmission.from_checkpoint(fname_de, L_ssp=lib_ssp.L_ssp)
+        return cls(helper, dust_attenuation, dust_emission, converter)
+
         
     def forward(self, x_in):
         l_main = self.dust_attenuation(x_in)
@@ -104,7 +115,7 @@ class Converter(nn.Module):
         self.unit_ab = self.unit_f_nu/3631
 
 
-class SSPLibrary(nn.Module):
+class SSPLibrary:
     def __init__(self, fname, log_lam, eps=5e-4):
         lib_ssp = pickle.load(open(fname, "rb"))
         lam_ssp = lib_ssp['lam']
@@ -115,13 +126,12 @@ class SSPLibrary(nn.Module):
         l_ssp_raw *= lam_ssp
         L_ssp = reduction(l_ssp_raw, log_lam_ssp, eps=eps)[0]
         l_ssp = interp_arr(log_lam, log_lam_ssp, l_ssp_raw)
-
-        super().__init__()
-        self.register_buffer('tau', torch.tensor(lib_ssp['tau'], dtype=torch.float32))
-        self.register_buffer('met', torch.tensor(lib_ssp['met'], dtype=torch.float32))
-        self.register_buffer('log_lam', torch.tensor(log_lam, dtype=torch.float32))
-        self.register_buffer('l_ssp', torch.tensor(l_ssp, dtype=torch.float32))
-        self.register_buffer('L_ssp', torch.tensor(L_ssp, dtype=torch.float32))
+        # Save attributes
+        self.tau = torch.tensor(lib_ssp['tau'], dtype=torch.float32)
+        self.met = torch.tensor(lib_ssp['met'], dtype=torch.float32)
+        self.log_lam = torch.tensor(log_lam, dtype=torch.float32)
+        self.l_ssp = torch.tensor(l_ssp, dtype=torch.float32)
+        self.L_ssp = torch.tensor(L_ssp, dtype=torch.float32)
 
 
 class Helper:
