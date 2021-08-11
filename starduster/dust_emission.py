@@ -6,19 +6,15 @@ from torch.nn import functional as F
 
 
 class AttenuationFractionSub(nn.Module):
-    def __init__(self, input_size, hidden_sizes, activations, dropout=0., sed=False):
+    def __init__(self, input_size, hidden_sizes, activations, dropout=0.):
         super().__init__()
         self.mlp = create_mlp(input_size, hidden_sizes, activations)
         if dropout > 0:
             self.mlp.add_module('dropout', nn.Dropout(dropout))
-        self.sed = sed
 
 
     def forward(self, p_frac, block):
-        if self.sed:
-            return torch.sum(self.mlp(p_frac[:, None, :])*block, dim=-1)
-        else:
-            return torch.sum(self.mlp(p_frac)*block, dim=-1)
+        return torch.sum(self.mlp(p_frac)*block, dim=-1)
 
 
 class DustEmission(nn.Module):
@@ -31,8 +27,6 @@ class DustEmission(nn.Module):
         if L_ssp is None:
             self.L_ssp = L_ssp
         else:
-            frac_disk.sed = True
-            frac_bulge.sed = True
             self.register_buffer('L_ssp', L_ssp)
 
 
@@ -74,8 +68,8 @@ class DustEmission(nn.Module):
             frac_disk = self.frac_disk(p_disk, x_disk)
             frac_bulge = self.frac_bulge(p_bulge, x_bulge)
         else:
-            frac_disk = torch.sum(x_disk*self.frac_disk(p_disk, self.L_ssp), dim=-1)
-            frac_bulge = torch.sum(x_bulge*self.frac_bulge(p_bulge, self.L_ssp), dim=-1)
+            frac_disk = torch.sum(x_disk*self.frac_disk(p_disk[:, None, :], self.L_ssp), dim=-1)
+            frac_bulge = torch.sum(x_bulge*self.frac_bulge(p_bulge[:, None, :], self.L_ssp), dim=-1)
         frac = (frac_disk*(1 - b2t) + frac_bulge*b2t)[:, None]
         return frac, frac_disk, frac_bulge
 
