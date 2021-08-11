@@ -37,11 +37,21 @@ class DustEmission(nn.Module):
 
 
     @classmethod
-    def from_kwargs(cls, helper, kwargs_distri, kwargs_frac_disk, kwargs_frac_bulge, L_ssp=None):
+    def from_args(cls, helper, kwargs_distri, kwargs_frac_disk, kwargs_frac_bulge, L_ssp=None):
         distri = EmissionDistribution(**kwargs_distri)
         frac_disk = AttenuationFractionSub(**kwargs_frac_disk)
         frac_bulge = AttenuationFractionSub(**kwargs_frac_bulge)
         return cls(helper, distri, frac_disk, frac_bulge, L_ssp=L_ssp)
+
+
+    @classmethod
+    def from_checkpoint(cls, fname, L_ssp=None):
+        checkpoint = torch.load(fname)
+        if L_ssp is not None:
+            checkpoint['model_state_dict']['L_ssp'] = L_ssp
+        model = cls.from_args(*checkpoint['params'], L_ssp=L_ssp)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        return model
 
 
     def forward(self, x_in):
