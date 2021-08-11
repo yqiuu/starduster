@@ -5,8 +5,8 @@ from numpy import pi
 
 
 __all__ = [
-    "Monotonic", "Unimodal", "Smooth", "PlankianMixture", "Forest", "LInfLoss",
-    "CrossEntropy", "create_mlp", "kld_trapz", "kld_binary", "reduce_loss"
+    "Monotonic", "Unimodal", "Smooth", "PlankianMixture", "LInfLoss",
+    "create_mlp", "kld_trapz", "kld_binary", "reduce_loss"
 ]
 
 
@@ -70,21 +70,6 @@ class PlankianMixture(nn.Module):
         return torch.sum(self.plank(mu)*w[:, :, None], dim=1)
 
 
-class Forest(nn.Module):
-    def __init__(self, input_size, forest_size, dx):
-        super().__init__()
-        self.lin_pos = nn.Linear(input_size, forest_size)
-        self.lin_neg = nn.Linear(input_size, forest_size)
-        self.dx = dx
-
-
-    def forward(self, x_in, continuum):
-        f_pos = torch.exp(self.lin_pos(x_in))
-        f_pos = f_pos/torch.trapz(f_pos, dx=self.dx)[:, None]
-        f_neg = -torch.sigmoid(self.lin_neg(x_in))*continuum
-        return -torch.trapz(f_neg, dx=self.dx)[:, None]*f_pos + f_neg
-
-
 class LInfLoss(nn.Module):
     def __init__(self, reduction='mean'):
         super().__init__()
@@ -93,19 +78,6 @@ class LInfLoss(nn.Module):
 
     def forward(self, y_true, y_pred):
         loss = torch.linalg.norm(y_pred - y_true, ord=float('inf'), dim=1)
-        return reduce_loss(loss, self.reduction)
-
-
-class CrossEntropy(nn.Module):
-    def __init__(self, dx, eps=1e-20, reduction='mean'):
-        super().__init__()
-        self.dx = dx
-        self.eps = eps
-        self.reduction = reduction
-
-
-    def __call__(self, y_pred, y_true):
-        loss = -torch.trapz(y_true*torch.log((y_pred + self.eps)/y_true), dx=self.dx)
         return reduce_loss(loss, self.reduction)
 
 
