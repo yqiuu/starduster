@@ -14,11 +14,11 @@ class AttenuationFractionSub(nn.Module):
         self.sed = sed
 
 
-    def forward(self, x_in):
+    def forward(self, p_frac, block):
         if self.sed:
-            return torch.sum(self.mlp(x_in[0][:, None, :])*x_in[1], dim=-1)
+            return torch.sum(self.mlp(p_frac[:, None, :])*block, dim=-1)
         else:
-            return torch.sum(self.mlp(x_in[0])*x_in[1], dim=-1)
+            return torch.sum(self.mlp(p_frac)*block, dim=-1)
 
 
 class DustEmission(nn.Module):
@@ -59,24 +59,23 @@ class DustEmission(nn.Module):
         return model
 
 
-    def forward(self, x_in):
-        x, lum_disk, lum_bulge = x_in
-        frac, frac_disk, frac_bulge = self._fraction(x, lum_disk, lum_bulge)
-        x = torch.cat([x, frac_disk[:, None], frac_bulge[:, None]], dim=1)
-        l_dust = self.distri(x)
+    def forward(self, params, x_disk, x_bulge):
+        frac, frac_disk, frac_bulge = self._fraction(params, x_disk, x_bulge)
+        params = torch.cat([params, frac_disk[:, None], frac_bulge[:, None]], dim=1)
+        l_dust = self.distri(params)
         return l_dust, frac
 
 
-    def _fraction(self, x, y_disk, y_bulge):
-        b2t = self.helper.recover(x, 'b_o_t')
-        x_disk = self.helper.get_item(x, 'frac_disk_inds')
-        x_bulge = self.helper.get_item(x, 'frac_bulge_inds')
+    def _fraction(self, params, x_disk, x_bulge):
+        b2t = self.helper.recover(params, 'b_o_t')
+        p_disk = self.helper.get_item(params, 'frac_disk_inds')
+        p_bulge = self.helper.get_item(params, 'frac_bulge_inds')
         if self.L_ssp is None:
-            frac_disk = self.frac_disk((x_disk, y_disk))
-            frac_bulge = self.frac_bulge((x_bulge, y_bulge))
+            frac_disk = self.frac_disk(p_disk, x_disk)
+            frac_bulge = self.frac_bulge(p_bulge, x_bulge)
         else:
-            frac_disk = torch.sum(y_disk*self.frac_disk((x_disk, self.L_ssp)), dim=-1)
-            frac_bulge = torch.sum(y_bulge*self.frac_bulge((x_bulge, self.L_ssp)), dim=-1)
+            frac_disk = torch.sum(x_disk*self.frac_disk(p_disk, self.L_ssp), dim=-1)
+            frac_bulge = torch.sum(x_bulge*self.frac_bulge(p_bulge, self.L_ssp), dim=-1)
         frac = (frac_disk*(1 - b2t) + frac_bulge*b2t)[:, None]
         return frac, frac_disk, frac_bulge
 

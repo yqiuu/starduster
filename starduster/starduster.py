@@ -46,18 +46,18 @@ class CompositeSED(nn.Module):
         return cls(helper, dust_attenuation, dust_emission, converter)
 
         
-    def forward(self, x_in):
-        l_main = self.dust_attenuation(x_in)
-        l_dust_slice, frac = self.dust_emission(x_in)
+    def forward(self, params, sfh_disk, sfh_bulge):
+        l_main = self.dust_attenuation(params, sfh_disk, sfh_bulge)
+        l_dust_slice, frac = self.dust_emission(params, sfh_disk, sfh_bulge)
         l_dust = self.helper.set_item(torch.zeros_like(l_main), 'slice_lam_de', l_dust_slice)
-        l_norm = self.helper.recover(x_in[0], 'l_norm')[:, None]
+        l_norm = self.helper.recover(params, 'l_norm')[:, None]
         l_tot = l_norm*(l_main + frac*l_dust)
         return self.converter(l_tot, self.return_ph)
 
 
-    def predict(self, x_in, return_ph=False):
+    def predict(self, params, sfh_disk, sfh_bulge, return_ph=False):
         self.return_ph = return_ph
-        retval = self(x_in)
+        retval = self(params, sfh_disk, sfh_bulge)
         self.return_ph = self.lam_pivot is not None
         return retval
 

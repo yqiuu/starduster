@@ -21,10 +21,9 @@ class Evaluator:
             return self.loss(self.model(x), x)
         else:
             x = args[:-self.n_out]
-            x = x[0] if len(x) == 1 else x
             y = args[-self.n_out:]
             y = y[0] if len(y) == 1 else y
-            return self.loss(self.model(x), y)
+            return self.loss(self.model(*x), y)
 
 
     def call(self, data, backward=True):

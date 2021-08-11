@@ -47,18 +47,17 @@ class DustAttenuation(nn.Module):
         self.register_buffer('l_ssp', l_ssp)
 
 
-    def forward(self, x_in):
-        x, sfh_disk, sfh_bulge = x_in
-        b2t = self.helper.recover(x, 'b_o_t')[:, None]
-        x_disk = self.helper.get_item(x, 'curve_disk_inds')
-        x_bulge = self.helper.get_item(x, 'curve_bulge_inds')
+    def forward(self, params, sfh_disk, sfh_bulge):
+        b2t = self.helper.recover(params, 'b_o_t')[:, None]
+        p_disk = self.helper.get_item(params, 'curve_disk_inds')
+        p_bulge = self.helper.get_item(params, 'curve_bulge_inds')
         l_disk = torch.matmul(sfh_disk, self.l_ssp)
         l_bulge = torch.matmul(sfh_bulge, self.l_ssp)
         trans_disk = self.helper.set_item(
-            torch.ones_like(l_disk), 'slice_lam_da', 10**(-.4*self.curve_disk(x_disk))
+            torch.ones_like(l_disk), 'slice_lam_da', 10**(-.4*self.curve_disk(p_disk))
         )
         trans_bulge = self.helper.set_item(
-            torch.ones_like(l_bulge), 'slice_lam_da', 10**(-.4*self.curve_bulge(x_bulge))
+            torch.ones_like(l_bulge), 'slice_lam_da', 10**(-.4*self.curve_bulge(p_bulge))
         )
         l_main = l_disk*trans_disk*(1 - b2t) + l_bulge*trans_bulge*b2t
         return l_main
