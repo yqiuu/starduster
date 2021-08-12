@@ -26,27 +26,34 @@ class CompositeSED(nn.Module):
     converter : module
         Converter.
     """
-    def __init__(self, helper, dust_attenuation, dust_emission, converter):
+    def __init__(self, helper, dust_attenuation, dust_emission, converter, adapter=None):
         super().__init__()
         self.helper = helper
         self.dust_attenuation = dust_attenuation
         self.dust_emission = dust_emission
         self.converter = converter
+        if adapter is None:
+            self.adapter = Adapter(helper)
+        else:
+            self.adapter = adapter
         self.lam = converter.lam
         self.lam_pivot = converter.lam_pivot
         self.return_ph = self.lam_pivot is not None
 
 
     @classmethod
-    def from_checkpoint(cls, helper, lib_ssp, converter, fname_da_disk, fname_da_bulge, fname_de):
+    def from_checkpoint(
+        cls, helper, lib_ssp, fname_da_disk, fname_da_bulge, fname_de, converter, adapter=None
+    ):
         curve_disk, _ = load_model(fname_da_disk, AttenuationCurve)
         curve_bulge, _ = load_model(fname_da_bulge, AttenuationCurve)
         dust_attenuation = DustAttenuation(helper.lookup, curve_disk, curve_bulge, lib_ssp.l_ssp)
         dust_emission = DustEmission.from_checkpoint(fname_de, L_ssp=lib_ssp.L_ssp)
-        return cls(helper, dust_attenuation, dust_emission, converter)
+        return cls(helper, dust_attenuation, dust_emission, converter, adapter)
 
         
-    def forward(self, params, sfh_disk, sfh_bulge):
+    def forward(self, *args):
+        params, sfh_disk, sfh_bulge = self.adapter(*args)
         l_main = self.dust_attenuation(params, sfh_disk, sfh_bulge)
         l_dust_slice, frac = self.dust_emission(params, sfh_disk, sfh_bulge)
         l_dust = self.helper.set_item(torch.zeros_like(l_main), 'slice_lam_de', l_dust_slice)
@@ -55,11 +62,60 @@ class CompositeSED(nn.Module):
         return self.converter(l_tot, self.return_ph)
 
 
-    def predict(self, params, sfh_disk, sfh_bulge, return_ph=False):
+    def predict(self, *args, return_ph=False):
         self.return_ph = return_ph
-        retval = self(params, sfh_disk, sfh_bulge)
+        retval = self(*args)
         self.return_ph = self.lam_pivot is not None
         return retval
+
+
+class Adapter(nn.Module):
+    """Apply different parametrisation to input parameters"""
+    def __init__(self, helper, **kwargs):
+        super().__init__()
+        n_sfh_fixed = 0
+        inds_fixed = []
+        params_fixed = []
+        for key, val in kwargs.items():
+            if key in helper.header:
+                inds_fixed.append(helper.lookup[key])
+                params_fixed.append(val)
+            elif key == 'sfh_disk' or key == 'sfh_bulge':
+                self.register_buffer(f"{key}_fixed", val)
+                n_sfh_fixed += 1
+            else:
+                KeyError(f"Unknown parameter: {key}.")
+        self.n_params = len(helper.header)
+        self.n_sfh_fixed = n_sfh_fixed
+        self.inds_fixed = tuple(inds_fixed)
+        self.inds_unfixed = tuple([i_p for i_p in range(self.n_params) if i_p not in inds_fixed])
+        self.register_buffer("params_fixed", torch.tensor(params_fixed, dtype=torch.float32))
+        if not hasattr(self, 'sfh_disk_fixed'):
+            self.sfh_disk_fixed = None
+        if not hasattr(self, 'sfh_bulge_fixed'):
+            self.sfh_bulge_fixed = None
+
+
+    def forward(self, *args):
+        params = args[0]
+        n_in = params.size(0)
+        params_out = torch.zeros([n_in, self.n_params], dtype=params.dtype, device=params.device)
+        params_out[:, self.inds_fixed] = self.params_fixed
+        params_out[:, self.inds_unfixed] = params
+        if self.n_sfh_fixed == 2:
+            sfh_disk = self.sfh_disk_fixed.tile((n_in, 1))
+            sfh_bulge = self.sfh_bulge_fixed.tile((n_in, 1))
+        elif self.n_sfh_fixed == 1:
+            if self.sfh_disk_fixed is None:
+                sfh_disk = args[1]
+                sfh_bulge = self.sfh_bulge_fixed.tile((n_in, 1))
+            if self.sfh_bulge_fixed is None:
+                sfh_disk = self.sfh_disk_fixed.tile((n_in, 1))
+                sfh_bulge = args[1]
+        elif self.n_sfh_fixed == 0:
+            sfh_disk = args[1]
+            sfh_bulge = args[2]
+        return params_out, sfh_disk, sfh_bulge
 
 
 class Converter(nn.Module):
