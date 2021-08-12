@@ -11,7 +11,7 @@ import torch
 from torch import nn
 
 
-class CompositeSED(nn.Module):
+class MultiwavelengthSED(nn.Module):
     """Primary module to compute multiwavelength SEDs
 
     Parameters
