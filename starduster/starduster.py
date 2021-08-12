@@ -130,7 +130,7 @@ class Converter(nn.Module):
     """
     def __init__(self, lam, distmod=0., z=0., filters=None):
         super().__init__()
-        self._set_unit()
+        self._set_unit(distmod)
         lam = lam*(1 + z)
         if filters is None:
             self.lam_pivot = None
@@ -165,8 +165,8 @@ class Converter(nn.Module):
         return lam_pivot, trans
 
 
-    def _set_unit(self):
-        unit_f_nu = U.solLum/(4*np.pi*(10*U.parsec)**2)*U.angstrom/constants.c
+    def _set_unit(self, distmod):
+        unit_f_nu = U.solLum/(4*np.pi*(10*U.parsec)**2)*U.angstrom/constants.c*10**(-.4*distmod)
         self.unit_f_nu = unit_f_nu.to(U.jansky).value
         self.unit_ab = self.unit_f_nu/3631
 
