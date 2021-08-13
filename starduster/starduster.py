@@ -39,6 +39,7 @@ class MultiwavelengthSED(nn.Module):
         self.lam = converter.lam
         self.lam_pivot = converter.lam_pivot
         self.return_ph = self.lam_pivot is not None
+        self._set_input_shapes()
 
 
     @classmethod
@@ -67,6 +68,13 @@ class MultiwavelengthSED(nn.Module):
         retval = self(*args)
         self.return_ph = self.lam_pivot is not None
         return retval
+
+
+    def _set_input_shapes(self):
+        input_shapes = [len(self.adapter.inds_unfixed)]
+        for i_sfh in range(2 - self.adapter.n_sfh_fixed):
+            input_shapes.append(self.dust_attenuation.l_ssp.size(0))
+        self.input_shapes = tuple(input_shapes)
 
 
 class Adapter(nn.Module):
