@@ -24,10 +24,7 @@ class DustEmission(nn.Module):
         self.distri = distri
         self.frac_disk = frac_disk
         self.frac_bulge = frac_bulge
-        if L_ssp is None:
-            self.L_ssp = L_ssp
-        else:
-            self.register_buffer('L_ssp', L_ssp)
+        self.L_ssp = L_ssp
 
 
     @classmethod
@@ -43,8 +40,6 @@ class DustEmission(nn.Module):
     @classmethod
     def from_checkpoint(cls, fname, L_ssp=None, no_dropout=True):
         checkpoint = torch.load(fname)
-        if L_ssp is not None:
-            checkpoint['model_state_dict']['L_ssp'] = L_ssp
         if no_dropout:
             checkpoint['params'][2]['dropout'] = 0.
             checkpoint['params'][3]['dropout'] = 0.

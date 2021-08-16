@@ -26,9 +26,10 @@ class MultiwavelengthSED(nn.Module):
     converter : module
         Converter.
     """
-    def __init__(self, helper, dust_attenuation, dust_emission, converter, adapter=None):
+    def __init__(self, helper, lib_ssp, dust_attenuation, dust_emission, converter, adapter=None):
         super().__init__()
         self.helper = helper
+        self.lib_ssp = lib_ssp
         self.dust_attenuation = dust_attenuation
         self.dust_emission = dust_emission
         self.converter = converter
@@ -50,7 +51,7 @@ class MultiwavelengthSED(nn.Module):
         curve_bulge, _ = load_model(fname_da_bulge, AttenuationCurve)
         dust_attenuation = DustAttenuation(helper.lookup, curve_disk, curve_bulge, lib_ssp.l_ssp)
         dust_emission = DustEmission.from_checkpoint(fname_de, L_ssp=lib_ssp.L_ssp)
-        return cls(helper, dust_attenuation, dust_emission, converter, adapter)
+        return cls(helper, lib_ssp, dust_attenuation, dust_emission, converter, adapter)
 
         
     def forward(self, *args):
@@ -68,6 +69,18 @@ class MultiwavelengthSED(nn.Module):
         retval = self(*args)
         self.return_ph = self.lam_pivot is not None
         return retval
+
+
+    def reshape_sfh(self, sfh):
+        return torch.atleast_2d(sfh).reshape((-1, *self.lib_ssp.sfh_shape))
+
+
+    def sum_over_age(self, sfh):
+        return self.reshape_sfh(sfh).sum(dim=self.lib_ssp.dim_age)
+
+
+    def sum_over_age(self, sfh):
+        return self.reshape_sfh(sfh).sum(dim=self.lib_ssp.dim_met)
 
 
     def _set_input_shapes(self):
@@ -179,23 +192,27 @@ class Converter(nn.Module):
         self.unit_ab = self.unit_f_nu/3631
 
 
-class SSPLibrary:
+class SSPLibrary(nn.Module):
     def __init__(self, fname, log_lam, eps=5e-4):
         lib_ssp = pickle.load(open(fname, "rb"))
         lam_ssp = lib_ssp['lam']
         log_lam_ssp = np.log(lam_ssp)
         l_ssp_raw = lib_ssp['flx']/lib_ssp['norm']
+        self.sfh_shape = l_ssp_raw.shape[1:] # (lam, met, age)
+        self.dim_age = 2
+        self.dim_met = 1
         l_ssp_raw.resize(l_ssp_raw.shape[0], l_ssp_raw.shape[1]*l_ssp_raw.shape[2])
         l_ssp_raw = l_ssp_raw.T
         l_ssp_raw *= lam_ssp
         L_ssp = reduction(l_ssp_raw, log_lam_ssp, eps=eps)[0]
         l_ssp = interp_arr(log_lam, log_lam_ssp, l_ssp_raw)
         # Save attributes
-        self.tau = torch.tensor(lib_ssp['tau'], dtype=torch.float32)
-        self.met = torch.tensor(lib_ssp['met'], dtype=torch.float32)
-        self.log_lam = torch.tensor(log_lam, dtype=torch.float32)
-        self.l_ssp = torch.tensor(l_ssp, dtype=torch.float32)
-        self.L_ssp = torch.tensor(L_ssp, dtype=torch.float32)
+        super().__init__()
+        self.register_buffer('tau', torch.tensor(lib_ssp['tau'], dtype=torch.float32))
+        self.register_buffer('met', torch.tensor(lib_ssp['met'], dtype=torch.float32))
+        self.register_buffer('log_lam', torch.tensor(log_lam, dtype=torch.float32))
+        self.register_buffer('l_ssp', torch.tensor(l_ssp, dtype=torch.float32))
+        self.register_buffer('L_ssp', torch.tensor(L_ssp, dtype=torch.float32))
 
 
 class Helper:

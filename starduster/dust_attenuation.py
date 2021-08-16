@@ -44,7 +44,7 @@ class DustAttenuation(nn.Module):
         self.helper = helper
         self.curve_disk = curve_disk
         self.curve_bulge = curve_bulge
-        self.register_buffer('l_ssp', l_ssp)
+        self.l_ssp = l_ssp
 
 
     def forward(self, params, sfh_disk, sfh_bulge):
