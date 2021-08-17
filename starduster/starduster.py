@@ -40,7 +40,6 @@ class MultiwavelengthSED(nn.Module):
         self.lam = converter.lam
         self.lam_pivot = converter.lam_pivot
         self.return_ph = self.lam_pivot is not None
-        self._set_input_shapes()
 
 
     @classmethod
@@ -83,16 +82,9 @@ class MultiwavelengthSED(nn.Module):
         return self.reshape_sfh(sfh).sum(dim=self.lib_ssp.dim_met)
 
 
-    def _set_input_shapes(self):
-        input_shapes = [len(self.adapter.inds_unfixed)]
-        for i_sfh in range(2 - self.adapter.n_sfh_fixed):
-            input_shapes.append(self.dust_attenuation.l_ssp.size(0))
-        self.input_shapes = tuple(input_shapes)
-
-
 class Adapter(nn.Module):
     """Apply different parametrisation to input parameters"""
-    def __init__(self, helper, **kwargs):
+    def __init__(self, helper, lib_ssp, input_mode='none', transform=None, **kwargs):
         super().__init__()
         n_sfh_fixed = 0
         inds_fixed = []
@@ -115,28 +107,70 @@ class Adapter(nn.Module):
             self.sfh_disk_fixed = None
         if not hasattr(self, 'sfh_bulge_fixed'):
             self.sfh_bulge_fixed = None
+        self._set_free_shapes(lib_ssp)
+        self.input_mode = input_mode
+        self.transform = transform
 
 
     def forward(self, *args):
-        params = args[0]
-        n_in = params.size(0)
-        params_out = torch.zeros([n_in, self.n_params], dtype=params.dtype, device=params.device)
-        params_out[:, self.inds_fixed] = self.params_fixed
-        params_out[:, self.inds_unfixed] = params
+        return self.set_fixed_params(self.preprocess(*args))
+
+
+    def preprocess(self, *args):
+        if self.input_mode == 'numpy':
+            args = torch.as_tensor(args[0], dtype=torch.float32)
+            free_params = self.unflatten(args)
+        elif self.input_mode == 'flat':
+            free_params = self.unflatten(args[0])
+        elif self.input_mode == 'none':
+            free_params = args
+        else:
+            raise ValueError("Unknown mode: {}".format(self.input_mode))
+        if self.transform is not None:
+            free_params = self.transform(free_params)
+            assert(type(free_params) is tuple)
+        return free_params
+
+
+    def set_fixed_params(self, free_params):
+        gp_in = free_params[0]
+        n_in = gp_in.size(0)
+        gp = torch.zeros([n_in, self.n_params], dtype=gp_in.dtype, device=gp_in.device)
+        gp[:, self.inds_fixed] = self.params_fixed
+        gp[:, self.inds_unfixed] = gp_in
         if self.n_sfh_fixed == 2:
             sfh_disk = self.sfh_disk_fixed.tile((n_in, 1))
             sfh_bulge = self.sfh_bulge_fixed.tile((n_in, 1))
         elif self.n_sfh_fixed == 1:
             if self.sfh_disk_fixed is None:
-                sfh_disk = args[1]
+                sfh_disk = free_params[1]
                 sfh_bulge = self.sfh_bulge_fixed.tile((n_in, 1))
             if self.sfh_bulge_fixed is None:
                 sfh_disk = self.sfh_disk_fixed.tile((n_in, 1))
-                sfh_bulge = args[1]
+                sfh_bulge = free_params[1]
         elif self.n_sfh_fixed == 0:
-            sfh_disk = args[1]
-            sfh_bulge = args[2]
-        return params_out, sfh_disk, sfh_bulge
+            sfh_disk = free_params[1]
+            sfh_bulge = free_params[2]
+        return gp, sfh_disk, sfh_bulge
+
+
+    def unflatten(self, x_in):
+        free_shapes = self.free_shapes
+        x_out = [None]*len(free_shapes)
+        idx_b = 0
+        for i_input, size in enumerate(free_shapes):
+            idx_e = idx_b + size
+            x_out[i_input] = x_in[:, idx_b:idx_e]
+            idx_b = idx_e
+        return tuple(x_out)
+
+
+    def _set_free_shapes(self, lib_ssp):
+        free_shapes = [len(self.inds_unfixed)]
+        for i_sfh in range(2 - self.n_sfh_fixed):
+            free_shapes.append(lib_ssp.l_ssp.size(0))
+        self.free_shapes = tuple(free_shapes)
+
 
 
 class Converter(nn.Module):
