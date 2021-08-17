@@ -127,7 +127,7 @@ class Adapter(nn.Module):
         else:
             raise ValueError("Unknown mode: {}".format(self.input_mode))
         if self.transform is not None:
-            free_params = self.transform(free_params)
+            free_params = self.transform(*free_params)
             assert(type(free_params) is tuple)
         return free_params
 
@@ -155,7 +155,8 @@ class Adapter(nn.Module):
 
 
     def unflatten(self, x_in):
-        free_shapes = self.free_shapes
+        free_shapes = self.free_shapes 
+        x_in = torch.atleast_2d(x_in)
         x_out = [None]*len(free_shapes)
         idx_b = 0
         for i_input, size in enumerate(free_shapes):
