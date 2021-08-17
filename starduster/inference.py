@@ -13,15 +13,8 @@ class GaussianLikelihood(nn.Module):
         return self.multi_normal.log_prob(y)
     
     
-class Preprocess(nn.Module):
-    def forward(self, params, sfh_disk):
-        params = F.hardtanh(params)
-        sfh_disk = F.softmax(sfh_disk, dim=-1)
-        return params, sfh_disk
-        
-
 class Posterior(nn.Module):
-    def __init__(self, sed_model, log_like, log_prior=None, preprocess=None):
+    def __init__(self, sed_model, log_like, log_prior=None, output_mode='none'):
         super().__init__()
         self.sed_model = sed_model
         self.log_like = log_like
@@ -29,25 +22,15 @@ class Posterior(nn.Module):
             self.log_prior = lambda *args: 0.
         else:
             self.log_prior = log_prior
-        if preprocess is None:
-            self.preprocess = lambda x: x
-        else:
-            self.preprocess = preprocess
+        self.output_mode = output_mode
     
 
     def forward(self, x_in):
-        x = self.preprocess(*self.unflatten(torch.atleast_2d(x_in)))
-        y = self.sed_model(*x)
-        return self.log_like(y) + self.log_prior(*x)
+        y = self.sed_model(x_in)
+        free_params = self.sed_model.adapter.preprocess(x_in)
+        log_post = self.log_like(y) + self.log_prior(*free_params)
+        if self.output_mode == 'numpy':
+            return log_post.detach().numpy()[0] 
+        else:
+            return log_post
     
-    
-    def unflatten(self, x_in):
-        input_shapes = self.sed_model.input_shapes
-        x_out = [None]*len(input_shapes)
-        idx_b = 0
-        for i_input, size in enumerate(input_shapes):
-            idx_e = idx_b + size
-            x_out[i_input] = x_in[:, idx_b:idx_e]
-            idx_b = idx_e
-        return x_out
-
