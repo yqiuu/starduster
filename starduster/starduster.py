@@ -87,12 +87,12 @@ class Adapter(nn.Module):
     def __init__(self, helper, lib_ssp, input_mode='none', transform=None, **kwargs):
         super().__init__()
         n_sfh_fixed = 0
-        inds_fixed = []
-        params_fixed = []
+        fixed_inds = []
+        fixed_params = []
         for key, val in kwargs.items():
             if key in helper.header:
-                inds_fixed.append(helper.lookup[key])
-                params_fixed.append(val)
+                fixed_inds.append(helper.lookup[key])
+                fixed_params.append(val)
             elif key == 'sfh_disk' or key == 'sfh_bulge':
                 self.register_buffer(f"{key}_fixed", val)
                 n_sfh_fixed += 1
@@ -100,9 +100,9 @@ class Adapter(nn.Module):
                 KeyError(f"Unknown parameter: {key}.")
         self.n_params = len(helper.header)
         self.n_sfh_fixed = n_sfh_fixed
-        self.inds_fixed = tuple(inds_fixed)
-        self.inds_unfixed = tuple([i_p for i_p in range(self.n_params) if i_p not in inds_fixed])
-        self.register_buffer("params_fixed", torch.tensor(params_fixed, dtype=torch.float32))
+        self.fixed_inds = tuple(fixed_inds)
+        self.free_inds = tuple([i_p for i_p in range(self.n_params) if i_p not in fixed_inds])
+        self.register_buffer("fixed_params", torch.tensor(fixed_params, dtype=torch.float32))
         if not hasattr(self, 'sfh_disk_fixed'):
             self.sfh_disk_fixed = None
         if not hasattr(self, 'sfh_bulge_fixed'):
@@ -136,8 +136,8 @@ class Adapter(nn.Module):
         gp_in = free_params[0]
         n_in = gp_in.size(0)
         gp = torch.zeros([n_in, self.n_params], dtype=gp_in.dtype, device=gp_in.device)
-        gp[:, self.inds_fixed] = self.params_fixed
-        gp[:, self.inds_unfixed] = gp_in
+        gp[:, self.fixed_inds] = self.fixed_params
+        gp[:, self.free_inds] = gp_in
         if self.n_sfh_fixed == 2:
             sfh_disk = self.sfh_disk_fixed.tile((n_in, 1))
             sfh_bulge = self.sfh_bulge_fixed.tile((n_in, 1))
@@ -167,7 +167,7 @@ class Adapter(nn.Module):
 
 
     def _set_free_shapes(self, lib_ssp):
-        free_shapes = [len(self.inds_unfixed)]
+        free_shapes = [len(self.free_inds)]
         for i_sfh in range(2 - self.n_sfh_fixed):
             free_shapes.append(lib_ssp.l_ssp.size(0))
         self.free_shapes = tuple(free_shapes)
