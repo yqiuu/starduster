@@ -44,12 +44,14 @@ class MultiwavelengthSED(nn.Module):
 
     @classmethod
     def from_checkpoint(
-        cls, helper, lib_ssp, fname_da_disk, fname_da_bulge, fname_de, converter, adapter=None
+        cls, helper, lib_ssp, fname_da_disk, fname_da_bulge, fname_de,
+        converter, adapter=None, map_location=None
     ):
-        curve_disk, _ = load_model(fname_da_disk, AttenuationCurve)
-        curve_bulge, _ = load_model(fname_da_bulge, AttenuationCurve)
+        curve_disk, _ = load_model(fname_da_disk, AttenuationCurve, map_location=map_location)
+        curve_bulge, _ = load_model(fname_da_bulge, AttenuationCurve, map_location=map_location)
         dust_attenuation = DustAttenuation(helper.lookup, curve_disk, curve_bulge, lib_ssp.l_ssp)
-        dust_emission = DustEmission.from_checkpoint(fname_de, L_ssp=lib_ssp.L_ssp)
+        dust_emission = \
+            DustEmission.from_checkpoint(fname_de, L_ssp=lib_ssp.L_ssp, map_location=map_location)
         return cls(helper, lib_ssp, dust_attenuation, dust_emission, converter, adapter)
 
         

@@ -21,8 +21,8 @@ def merge_history(history1, history2):
     return history
 
 
-def load_model(fname, init):
-    checkpoint = torch.load(fname)
+def load_model(fname, init, map_location=None):
+    checkpoint = torch.load(fname, map_location=map_location)
     model = init(*checkpoint['params'])
     model.load_state_dict(checkpoint['model_state_dict'])
     return model, checkpoint

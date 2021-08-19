@@ -38,8 +38,8 @@ class DustEmission(nn.Module):
 
 
     @classmethod
-    def from_checkpoint(cls, fname, L_ssp=None, no_dropout=True):
-        checkpoint = torch.load(fname)
+    def from_checkpoint(cls, fname, L_ssp=None, no_dropout=True, map_location=None):
+        checkpoint = torch.load(fname, map_location=map_location)
         if no_dropout:
             checkpoint['params'][2]['dropout'] = 0.
             checkpoint['params'][3]['dropout'] = 0.
