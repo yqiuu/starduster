@@ -1,4 +1,5 @@
 from .modules import create_mlp
+from .helper import Helper
 
 import torch
 from torch import nn
@@ -8,7 +9,10 @@ class Selector(nn.Module):
     def __init__(self, helper, input_size, hidden_sizes, activations):
         super().__init__()
         assert hidden_sizes[-1] == 1
-        self.helper = helper
+        if isinstance(helper, Helper):
+            self.helper = helper
+        else:
+            self.helper = Helper(*helper)
         self.mlp = create_mlp(input_size, hidden_sizes, activations)
 
 
