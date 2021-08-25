@@ -30,6 +30,6 @@ class Selector(nn.Module):
                 params = sampler(2*n_samp)
             params = params[self.select(params)]
             params_accept = torch.vstack([params_accept, params])
-        params_accept = self.helper.recover(params_accept[:n_samp])
+        params_accept = self.helper.recover_all(params_accept[:n_samp])
         return params_accept
 

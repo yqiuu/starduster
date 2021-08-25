@@ -48,7 +48,7 @@ class DustAttenuation(nn.Module):
 
 
     def forward(self, params, sfh_disk, sfh_bulge):
-        b2t = self.helper.recover(params, 'b_o_t')[:, None]
+        b2t = self.helper.get_recover(params, 'b_o_t', torch)[:, None]
         p_disk = self.helper.get_item(params, 'curve_disk_inds')
         p_bulge = self.helper.get_item(params, 'curve_bulge_inds')
         l_disk = torch.matmul(sfh_disk, self.l_ssp)
