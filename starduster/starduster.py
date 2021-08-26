@@ -72,18 +72,6 @@ class MultiwavelengthSED(nn.Module):
         return retval
 
 
-    def reshape_sfh(self, sfh):
-        return torch.atleast_2d(sfh).reshape((-1, *self.lib_ssp.sfh_shape))
-
-
-    def sum_over_age(self, sfh):
-        return self.reshape_sfh(sfh).sum(dim=self.lib_ssp.dim_age)
-
-
-    def sum_over_age(self, sfh):
-        return self.reshape_sfh(sfh).sum(dim=self.lib_ssp.dim_met)
-
-
 class Adapter(nn.Module):
     """Apply different parametrisation to input parameters"""
     def __init__(self, helper, lib_ssp, input_mode='none', transform=None, **kwargs):
@@ -250,4 +238,16 @@ class SSPLibrary(nn.Module):
         self.register_buffer('log_lam', torch.tensor(log_lam, dtype=torch.float32))
         self.register_buffer('l_ssp', torch.tensor(l_ssp, dtype=torch.float32))
         self.register_buffer('L_ssp', torch.tensor(L_ssp, dtype=torch.float32))
+
+
+    def reshape_sfh(self, sfh):
+        return torch.atleast_2d(sfh).reshape((-1, *self.lib_ssp.sfh_shape))
+
+
+    def sum_over_age(self, sfh):
+        return self.reshape_sfh(sfh).sum(dim=self.lib_ssp.dim_age)
+
+
+    def sum_over_met(self, sfh):
+        return self.reshape_sfh(sfh).sum(dim=self.lib_ssp.dim_met)
 
