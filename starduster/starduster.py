@@ -74,7 +74,9 @@ class MultiwavelengthSED(nn.Module):
 
 class Adapter(nn.Module):
     """Apply different parametrisation to input parameters"""
-    def __init__(self, helper, lib_ssp, input_mode='none', transform=None, **kwargs):
+    def __init__(self,
+        helper, lib_ssp, input_mode='none', transform=None, uni_met=False, **kwargs
+    ):
         super().__init__()
         n_sfh_fixed = 0
         fixed_inds = []
@@ -97,13 +99,24 @@ class Adapter(nn.Module):
             self.sfh_disk_fixed = None
         if not hasattr(self, 'sfh_bulge_fixed'):
             self.sfh_bulge_fixed = None
-        self._set_free_shapes(lib_ssp)
+        self._set_free_shapes(lib_ssp, uni_met)
+        self._set_log_met(lib_ssp)
         self.input_mode = input_mode
         self.transform = transform
+        self.uni_met = uni_met
 
 
     def forward(self, *args):
-        return self.set_fixed_params(self.preprocess(*args))
+        free_params = self.preprocess(*args)
+        if self.uni_met:
+            if len(free_params) == 3:
+                sfh = self.inverse_distance_weighting(*free_params[1:]) 
+                free_params = (free_params[0], sfh)
+            elif len(free_params) == 5:
+                sfh_disk = self.inverse_distance_weighting(*free_params[1:3])
+                sfh_bulge = self.inverse_distance_weighting(*free_params[3:5])
+                free_params = (free_params[0], sfh_disk, sfh_bulge)
+        return self.set_fixed_params(free_params)
 
 
     def preprocess(self, *args):
@@ -155,13 +168,31 @@ class Adapter(nn.Module):
             idx_b = idx_e
         return tuple(x_out)
 
+    
+    def inverse_distance_weighting(self, sfr, log_met):
+        eps = 1e-6
+        inv = 1./((log_met[:, None, :] - self.log_met)**2 + eps)
+        weights = inv/inv.sum(dim=1)[:, None, :]
+        sfh = sfr[:, None, :]*weights
+        return sfh.flatten(start_dim=1)
 
-    def _set_free_shapes(self, lib_ssp):
+
+    def _set_free_shapes(self, lib_ssp, uni_met=False):
+        sfh_size = lib_ssp.l_ssp.size(0)
         free_shapes = [len(self.free_inds)]
         for i_sfh in range(2 - self.n_sfh_fixed):
-            free_shapes.append(lib_ssp.l_ssp.size(0))
+            if uni_met:
+                free_shapes.append(len(lib_ssp.tau))
+                free_shapes.append(1)
+            else:
+                free_shapes.append(sfh_size)
+        self.sfh_shape = lib_ssp.sfh_shape
         self.free_shapes = tuple(free_shapes)
 
+
+    def _set_log_met(self, lib_ssp):
+        met_sol = 0.019
+        self.log_met = torch.log10(lib_ssp.met/met_sol)[:, None]
 
 
 class Converter(nn.Module):
