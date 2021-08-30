@@ -173,7 +173,7 @@ class Adapter(nn.Module):
                 sfh = sfr*self.derive_idw_met(log_met)
                 sfh = torch.flatten(sfh, start_dim=1)
         else:
-            sfh = self.derive_sfr(sfr)*self.derive_idw_met(log_met)
+            sfh = self.derive_sfr(sfr)[:, None, :]*self.derive_idw_met(log_met)
             sfh = torch.flatten(sfh, start_dim=1)
         return sfh
 
@@ -182,7 +182,7 @@ class Adapter(nn.Module):
         sfr_out = torch.zeros([sfr.size(0), self.n_tau],
             dtype=sfr.dtype, layout=sfr.layout, device=sfr.device)
         for i_b, (idx_b, idx_e) in enumerate(self.sfr_bins):
-            sfr_out[:, idx_b:idx_e] = sfr[:, i_b]/(idx_e - idx_b)
+            sfr_out[:, idx_b:idx_e] = sfr[:, i_b, None]/(idx_e - idx_b)
         return sfr_out
 
 
