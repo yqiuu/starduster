@@ -75,7 +75,7 @@ class MultiwavelengthSED(nn.Module):
 class Adapter(nn.Module):
     """Apply different parametrisation to input parameters"""
     def __init__(self,
-        helper, lib_ssp, input_mode='none', transform=None, uni_met=False, **kwargs
+        helper, lib_ssp, input_mode='none', transform=None, sfh_bins=None, uni_met=False, **kwargs
     ):
         super().__init__()
         n_sfh_fixed = 0
@@ -99,11 +99,12 @@ class Adapter(nn.Module):
             self.sfh_disk_fixed = None
         if not hasattr(self, 'sfh_bulge_fixed'):
             self.sfh_bulge_fixed = None
-        self._set_free_shapes(lib_ssp, uni_met)
         self._set_log_met(lib_ssp)
         self.input_mode = input_mode
         self.transform = transform
+        self.sfh_bins = sfh_bins
         self.uni_met = uni_met
+        self._set_free_shapes(lib_ssp)
 
 
     def forward(self, *args):
@@ -171,22 +172,34 @@ class Adapter(nn.Module):
     
     def inverse_distance_weighting(self, sfr, log_met):
         eps = 1e-6
+        if self.sfh_bins is not None:
+            sfr_full = torch.zeros([sfr.size(0), self.sfh_size])
+            for i_b, (idx_b, idx_e) in enumerate(self.sfh_bins):
+                sfr_full[:, idx_b:idx_e] = sfr[:, i_b]/(idx_e - idx_b)
+        else:
+            sfr_full = sfr
         inv = 1./((log_met[:, None, :] - self.log_met)**2 + eps)
         weights = inv/inv.sum(dim=1)[:, None, :]
-        sfh = sfr[:, None, :]*weights
+        sfh = sfr_full[:, None, :]*weights
         return sfh.flatten(start_dim=1)
 
 
-    def _set_free_shapes(self, lib_ssp, uni_met=False):
-        sfh_size = lib_ssp.l_ssp.size(0)
+    def _set_free_shapes(self, lib_ssp):
+        if self.uni_met:
+            if self.sfh_bins is None:
+                sfh_size = len(lib_ssp.tau)
+            else:
+                sfh_size = len(self.sfh_bins)
+        else:
+            sfh_size = lib_ssp.l_ssp.size(0)
         free_shapes = [len(self.free_inds)]
         for i_sfh in range(2 - self.n_sfh_fixed):
-            if uni_met:
-                free_shapes.append(len(lib_ssp.tau))
+            if self.uni_met:
+                free_shapes.append(sfh_size)
                 free_shapes.append(1)
             else:
                 free_shapes.append(sfh_size)
-        self.sfh_shape = lib_ssp.sfh_shape
+        self.sfh_size = 6
         self.free_shapes = tuple(free_shapes)
 
 
