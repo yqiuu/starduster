@@ -179,7 +179,7 @@ class Adapter(nn.Module):
 
 
     def derive_sfr(self, sfr):
-        sfr_out = torch.zeros([sfr.size(0), 6],
+        sfr_out = torch.zeros([sfr.size(0), self.n_tau],
             dtype=sfr.dtype, layout=sfr.layout, device=sfr.device)
         for i_b, (idx_b, idx_e) in enumerate(self.sfr_bins):
             sfr_out[:, idx_b:idx_e] = sfr[:, i_b]/(idx_e - idx_b)
@@ -211,6 +211,7 @@ class Adapter(nn.Module):
         self.sfr_bins = sfr_bins
         self.met_type = met_type
         self.n_sfh_input = n_sfh_input
+        self.n_tau = lib_ssp.n_tau
         self.sfh_shape = tuple(sfh_shape)
         self.free_shape = tuple([len(self.free_inds)] + sfh_shape*self.n_free_sfh)
 
