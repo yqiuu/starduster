@@ -75,10 +75,11 @@ class MultiwavelengthSED(nn.Module):
 class Adapter(nn.Module):
     """Apply different parametrisation to input parameters"""
     def __init__(self,
-        helper, lib_ssp, input_mode='none', transform=None, sfh_bins=None, uni_met=False, **kwargs
+        helper, lib_ssp, input_mode='none', transform=None,
+        sfr_bins=None, met_type='uni_idw', **kwargs
     ):
         super().__init__()
-        n_sfh_fixed = 0
+        n_free_sfh = 2
         fixed_inds = []
         fixed_params = []
         for key, val in kwargs.items():
@@ -87,11 +88,11 @@ class Adapter(nn.Module):
                 fixed_params.append(val)
             elif key == 'sfh_disk' or key == 'sfh_bulge':
                 self.register_buffer(f"{key}_fixed", val)
-                n_sfh_fixed += 1
+                n_free_sfh -= 1
             else:
                 KeyError(f"Unknown parameter: {key}.")
         self.n_params = len(helper.header)
-        self.n_sfh_fixed = n_sfh_fixed
+        self.n_free_sfh = n_free_sfh
         self.fixed_inds = tuple(fixed_inds)
         self.free_inds = tuple([i_p for i_p in range(self.n_params) if i_p not in fixed_inds])
         self.register_buffer("fixed_params", torch.tensor(fixed_params, dtype=torch.float32))
@@ -99,24 +100,18 @@ class Adapter(nn.Module):
             self.sfh_disk_fixed = None
         if not hasattr(self, 'sfh_bulge_fixed'):
             self.sfh_bulge_fixed = None
-        self._set_log_met(lib_ssp)
         self.input_mode = input_mode
         self.transform = transform
-        self.sfh_bins = sfh_bins
-        self.uni_met = uni_met
-        self._set_free_shapes(lib_ssp)
+        self._set_log_met(lib_ssp)
+        self._set_free_shape(lib_ssp, sfr_bins, met_type)
 
 
     def forward(self, *args):
+        n_in = self.n_sfh_input
         free_params = self.preprocess(*args)
-        if self.uni_met:
-            if len(free_params) == 3:
-                sfh = self.inverse_distance_weighting(*free_params[1:]) 
-                free_params = (free_params[0], sfh)
-            elif len(free_params) == 5:
-                sfh_disk = self.inverse_distance_weighting(*free_params[1:3])
-                sfh_bulge = self.inverse_distance_weighting(*free_params[3:5])
-                free_params = (free_params[0], sfh_disk, sfh_bulge)
+        sfh_params = [self.derive_sfh(*free_params[idx : idx+n_in]) \
+            for idx in range(1, len(free_params), n_in)]
+        free_params = (free_params[0], *sfh_params)
         return self.set_fixed_params(free_params)
 
 
@@ -142,65 +137,82 @@ class Adapter(nn.Module):
         gp = torch.zeros([n_in, self.n_params], dtype=gp_in.dtype, device=gp_in.device)
         gp[:, self.fixed_inds] = self.fixed_params
         gp[:, self.free_inds] = gp_in
-        if self.n_sfh_fixed == 2:
+        if self.n_free_sfh == 0:
             sfh_disk = self.sfh_disk_fixed.tile((n_in, 1))
             sfh_bulge = self.sfh_bulge_fixed.tile((n_in, 1))
-        elif self.n_sfh_fixed == 1:
+        elif self.n_free_sfh == 1:
             if self.sfh_disk_fixed is None:
                 sfh_disk = free_params[1]
                 sfh_bulge = self.sfh_bulge_fixed.tile((n_in, 1))
             if self.sfh_bulge_fixed is None:
                 sfh_disk = self.sfh_disk_fixed.tile((n_in, 1))
                 sfh_bulge = free_params[1]
-        elif self.n_sfh_fixed == 0:
+        elif self.n_free_sfh == 2:
             sfh_disk = free_params[1]
             sfh_bulge = free_params[2]
         return gp, sfh_disk, sfh_bulge
 
 
     def unflatten(self, x_in):
-        free_shapes = self.free_shapes 
+        free_shape = self.free_shape
         x_in = torch.atleast_2d(x_in)
-        x_out = [None]*len(free_shapes)
+        x_out = [None]*len(free_shape)
         idx_b = 0
-        for i_input, size in enumerate(free_shapes):
+        for i_input, size in enumerate(free_shape):
             idx_e = idx_b + size
             x_out[i_input] = x_in[:, idx_b:idx_e]
             idx_b = idx_e
         return tuple(x_out)
 
     
-    def inverse_distance_weighting(self, sfr, log_met):
-        eps = 1e-6
-        if self.sfh_bins is not None:
-            sfr_full = torch.zeros([sfr.size(0), self.sfh_size])
-            for i_b, (idx_b, idx_e) in enumerate(self.sfh_bins):
-                sfr_full[:, idx_b:idx_e] = sfr[:, i_b]/(idx_e - idx_b)
+    def derive_sfh(self, sfr, log_met=None):
+        if self.sfr_bins is None:
+            if self.met_type == 'discrete':
+                sfh = sfr
+            elif self.met_type == 'idw' or self.met_type == 'uni_idw':
+                sfh = sfr*self.derive_idw_met(log_met)
+                sfh = torch.flatten(sfh, start_dim=1)
         else:
-            sfr_full = sfr
+            sfh = self.derive_sfr(sfr)*self.derive_idw_met(log_met)
+            sfh = torch.flatten(sfh, start_dim=1)
+        return sfh
+
+
+    def derive_sfr(self, sfr):
+        sfr_out = torch.zeros([sfr.size(0), 6],
+            dtype=sfr.dtype, layout=sfr.layout, device=sfr.device)
+        for i_b, (idx_b, idx_e) in enumerate(self.sfr_bins):
+            sfr_out[:, idx_b:idx_e] = sfr[:, i_b]/(idx_e - idx_b)
+        return sfr_out
+
+
+    def derive_idw_met(self, log_met):
+        eps = 1e-6
         inv = 1./((log_met[:, None, :] - self.log_met)**2 + eps)
         weights = inv/inv.sum(dim=1)[:, None, :]
-        sfh = sfr_full[:, None, :]*weights
-        return sfh.flatten(start_dim=1)
+        return weights
 
 
-    def _set_free_shapes(self, lib_ssp):
-        if self.uni_met:
-            if self.sfh_bins is None:
-                sfh_size = len(lib_ssp.tau)
-            else:
-                sfh_size = len(self.sfh_bins)
+    def _set_free_shape(self, lib_ssp, sfr_bins, met_type):
+        if sfr_bins is None and met_type == 'discrete':
+            sfh_shape = [lib_ssp.n_ssp,]
+        elif sfr_bins is None and met_type == 'idw':
+            sfh_shape = [lib_ssp.n_tau, lib_ssp.n_met]
+        elif sfr_bins is None and met_type == 'uni_idw':
+            sfh_shape = [lib_ssp.n_tau, 1]
+        elif sfr_bins is not None and met_type == 'idw':
+            sfh_shape = [len(sfr_bins), lib_ssp.n_met]
+        elif sfr_bins is not None and met_type == 'uni_idw':
+            sfh_shape = [len(sfr_bins), 1]
         else:
-            sfh_size = lib_ssp.l_ssp.size(0)
-        free_shapes = [len(self.free_inds)]
-        for i_sfh in range(2 - self.n_sfh_fixed):
-            if self.uni_met:
-                free_shapes.append(sfh_size)
-                free_shapes.append(1)
-            else:
-                free_shapes.append(sfh_size)
-        self.sfh_size = 6
-        self.free_shapes = tuple(free_shapes)
+            raise ValueError("Unknown SFH type.")
+        n_sfh_input = 1 if met_type == 'discrete' else 2
+        # Set attributes
+        self.sfr_bins = sfr_bins
+        self.met_type = met_type
+        self.n_sfh_input = n_sfh_input
+        self.sfh_shape = tuple(sfh_shape)
+        self.free_shape = tuple([len(self.free_inds)] + sfh_shape*self.n_free_sfh)
 
 
     def _set_log_met(self, lib_ssp):
@@ -268,6 +280,9 @@ class SSPLibrary(nn.Module):
         log_lam_ssp = np.log(lam_ssp)
         l_ssp_raw = lib_ssp['flx']/lib_ssp['norm']
         self.sfh_shape = l_ssp_raw.shape[1:] # (lam, met, age)
+        self.n_met = len(lib_ssp['met'])
+        self.n_tau = len(lib_ssp['tau'])
+        self.n_ssp = len(lib_ssp['met']*lib_ssp['tau'])
         self.dim_age = 2
         self.dim_met = 1
         l_ssp_raw.resize(l_ssp_raw.shape[0], l_ssp_raw.shape[1]*l_ssp_raw.shape[2])
