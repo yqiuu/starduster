@@ -28,8 +28,8 @@ class AttenuationCurve(nn.Module):
             setattr(self, 'bump{}'.format(i_bump), seq)
         self.bump_inds = bump_inds
         self.trough = nn.Sequential(
-            Unimodal(hidden_sizes[-1], trough_ind[1] - trough_ind[0] + bump_kernel_size - 1),
-            Smooth(bump_kernel_size)
+            Unimodal(hidden_sizes[-1], trough_ind[1] - trough_ind[0] + baseline_kernel_size - 1),
+            Smooth(baseline_kernel_size)
         )
         self.trough_ind = trough_ind
 
