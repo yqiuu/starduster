@@ -33,9 +33,9 @@ class Posterior(nn.Module):
         free_params = self.sed_model.adapter.preprocess(x_in)
         log_post = self.log_like(y)# + self.log_prior(*free_params)
         if self.output_mode == 'numpy':
-            return log_post.detach().numpy()[0] 
+            return log_post.detach().numpy()
         elif self.output_mode == 'numpy_grad':
             log_post.backward()
-            return log_post.detach().numpy()[0], np.array(x_in.grad, dtype=np.float64)
+            return log_post.detach().numpy(), np.array(x_in.grad, dtype=np.float64)
         return log_post
     

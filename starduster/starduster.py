@@ -62,7 +62,7 @@ class MultiwavelengthSED(nn.Module):
         l_dust = self.helper.set_item(torch.zeros_like(l_main), 'slice_lam_de', l_dust_slice)
         l_norm = self.helper.get_recover(params, 'l_norm', torch)[:, None]
         l_tot = l_norm*(l_main + frac*l_dust)
-        return self.converter(l_tot, self.return_ph)
+        return torch.squeeze(self.converter(l_tot, self.return_ph))
 
 
     def predict(self, *args, return_ph=False):
