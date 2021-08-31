@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -26,11 +27,15 @@ class Posterior(nn.Module):
     
 
     def forward(self, x_in):
+        if self.output_mode == 'numpy_grad':
+            x_in = torch.tensor(x_in, dtype=torch.float32, requires_grad=True)
         y = self.sed_model(x_in)
         free_params = self.sed_model.adapter.preprocess(x_in)
-        log_post = self.log_like(y) + self.log_prior(*free_params)
+        log_post = self.log_like(y)# + self.log_prior(*free_params)
         if self.output_mode == 'numpy':
             return log_post.detach().numpy()[0] 
-        else:
-            return log_post
+        elif self.output_mode == 'numpy_grad':
+            log_post.backward()
+            return log_post.detach().numpy()[0], np.array(x_in.grad, dtype=np.float64)
+        return log_post
     
