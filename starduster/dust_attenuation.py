@@ -6,7 +6,7 @@ from torch import nn
 
 class AttenuationCurve(nn.Module):
     def __init__(self,
-        input_size, output_size, hidden_sizes, activations, bump_inds,
+        input_size, output_size, hidden_sizes, activations, bump_inds, trough_ind,
         baseline_kernel_size=1, bump_kernel_size=1
     ):
         super().__init__()
@@ -27,6 +27,11 @@ class AttenuationCurve(nn.Module):
             )
             setattr(self, 'bump{}'.format(i_bump), seq)
         self.bump_inds = bump_inds
+        self.trough = nn.Sequential(
+            Unimodal(hidden_sizes[-1], trough_ind[1] - trough_ind[0] + bump_kernel_size - 1),
+            Smooth(bump_kernel_size)
+        )
+        self.trough_ind = trough_ind
 
 
     def forward(self, x_in):
@@ -34,6 +39,7 @@ class AttenuationCurve(nn.Module):
         y = self.baseline(x)
         for i_bump, (idx_b, idx_e) in enumerate(self.bump_inds):
             y[:, idx_b:idx_e] += getattr(self, 'bump{}'.format(i_bump))(x)
+        y[:, slice(*self.trough_ind)] -= self.trough(x)
         y = y*self.norm(x)/torch.mean(y, dim=1)[:, None]
         return y
 
