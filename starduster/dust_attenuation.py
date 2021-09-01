@@ -32,6 +32,8 @@ class AttenuationCurve(nn.Module):
             Smooth(baseline_kernel_size)
         )
         self.trough_ind = trough_ind
+        #
+        self._norm_fix = .1
 
 
     def forward(self, x_in):
@@ -40,7 +42,7 @@ class AttenuationCurve(nn.Module):
         for i_bump, (idx_b, idx_e) in enumerate(self.bump_inds):
             y[:, idx_b:idx_e] += getattr(self, 'bump{}'.format(i_bump))(x)
         y[:, slice(*self.trough_ind)] -= self.trough(x)
-        y = y*self.norm(x)/torch.mean(y, dim=1)[:, None]
+        y = y*self.norm(x)/(torch.mean(y, dim=1)[:, None] + self._norm_fix)
         return y
 
 
