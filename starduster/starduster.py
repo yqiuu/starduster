@@ -34,7 +34,7 @@ class MultiwavelengthSED(nn.Module):
         self.dust_emission = dust_emission
         self.converter = converter
         if adapter is None:
-            self.adapter = Adapter(helper)
+            self.adapter = Adapter(helper, lib_ssp)
         else:
             self.adapter = adapter
         self.lam = converter.lam
