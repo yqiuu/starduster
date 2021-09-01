@@ -25,6 +25,8 @@ class DustEmission(nn.Module):
         self.frac_disk = frac_disk
         self.frac_bulge = frac_bulge
         self.L_ssp = L_ssp
+        #
+        self._b2t_name = 'b_to_t'
 
 
     @classmethod
@@ -56,7 +58,7 @@ class DustEmission(nn.Module):
 
 
     def _fraction(self, params, x_disk, x_bulge):
-        b2t = self.helper.get_recover(params, 'b_o_t', torch)
+        b2t = self.helper.get_recover(params, self._b2t_name, torch)
         p_disk = self.helper.get_item(params, 'frac_disk_inds')
         p_bulge = self.helper.get_item(params, 'frac_bulge_inds')
         if self.L_ssp is None:
