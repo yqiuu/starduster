@@ -170,7 +170,7 @@ class Adapter(nn.Module):
             if self.met_type == 'discrete':
                 sfh = sfr
             elif self.met_type == 'idw' or self.met_type == 'uni_idw':
-                sfh = sfr*self.derive_idw_met(log_met)
+                sfh = sfr[:, None, :]*self.derive_idw_met(log_met)
                 sfh = torch.flatten(sfh, start_dim=1)
         else:
             sfh = self.derive_sfr(sfr)[:, None, :]*self.derive_idw_met(log_met)
