@@ -277,7 +277,7 @@ class Converter(nn.Module):
 
 
 class SSPLibrary(nn.Module):
-    def __init__(self, fname, log_lam, eps=5e-4):
+    def __init__(self, fname, lam, eps=5e-4):
         lib_ssp = pickle.load(open(fname, "rb"))
         lam_ssp = lib_ssp['lam']
         log_lam_ssp = np.log(lam_ssp)
@@ -292,12 +292,12 @@ class SSPLibrary(nn.Module):
         l_ssp_raw = l_ssp_raw.T
         l_ssp_raw *= lam_ssp
         L_ssp = reduction(l_ssp_raw, log_lam_ssp, eps=eps)[0]
-        l_ssp = interp_arr(log_lam, log_lam_ssp, l_ssp_raw)
+        l_ssp = interp_arr(np.log(lam), log_lam_ssp, l_ssp_raw)
         # Save attributes
         super().__init__()
         self.register_buffer('tau', torch.tensor(lib_ssp['tau'], dtype=torch.float32))
         self.register_buffer('met', torch.tensor(lib_ssp['met'], dtype=torch.float32))
-        self.register_buffer('log_lam', torch.tensor(log_lam, dtype=torch.float32))
+        self.register_buffer('lam', torch.tensor(lam, dtype=torch.float32))
         self.register_buffer('l_ssp', torch.tensor(l_ssp, dtype=torch.float32))
         self.register_buffer('L_ssp', torch.tensor(L_ssp, dtype=torch.float32))
 
