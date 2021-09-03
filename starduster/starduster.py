@@ -26,23 +26,20 @@ class MultiwavelengthSED(nn.Module):
     detector : module
         Detector.
     """
-    def __init__(self, helper, lib_ssp, dust_attenuation, dust_emission, adapter=None):
+    def __init__(self, helper, lib_ssp, dust_attenuation, dust_emission):
         super().__init__()
         self.helper = helper
         self.lib_ssp = lib_ssp
         self.dust_attenuation = dust_attenuation
         self.dust_emission = dust_emission
+        self.adapter = Adapter(helper, lib_ssp)
         self.detector = Detector(lib_ssp.lam)
-        if adapter is None:
-            self.adapter = Adapter(helper, lib_ssp)
-        else:
-            self.adapter = adapter
         self.return_ph = True
 
 
     @classmethod
     def from_checkpoint(
-        cls, lib_ssp, fname_da_disk, fname_da_bulge, fname_de, adapter=None, map_location=None
+        cls, lib_ssp, fname_da_disk, fname_da_bulge, fname_de, map_location=None
     ):
         curve_disk, _ = load_model(fname_da_disk, AttenuationCurve, map_location=map_location)
         curve_bulge, _ = load_model(fname_da_bulge, AttenuationCurve, map_location=map_location)
@@ -50,7 +47,7 @@ class MultiwavelengthSED(nn.Module):
             DustEmission.from_checkpoint(fname_de, lib_ssp.L_ssp, map_location=map_location)
         helper = dust_emission.helper
         dust_attenuation = DustAttenuation(helper, curve_disk, curve_bulge, lib_ssp.l_ssp)
-        return cls(helper, lib_ssp, dust_attenuation, dust_emission, adapter)
+        return cls(helper, lib_ssp, dust_attenuation, dust_emission)
 
         
     def forward(self, *args, return_ph=True):
@@ -63,42 +60,25 @@ class MultiwavelengthSED(nn.Module):
         return torch.squeeze(self.detector(l_tot, return_ph))
 
 
+    def configure_input_format(self,
+        input_mode='flat', sfr_bins=None, met_type='discrete', transform=None, fixed_params=None
+    ):
+        self.adapter.configure(
+            self.helper, self.lib_ssp, input_mode, sfr_bins, met_type, transform, fixed_params
+        )
+
+
     def configure_output_format(self, filters=None, z=0., distmod=0.):
         self.detector.configure(filters, z, distmod)
 
 
 class Adapter(nn.Module):
     """Apply different parametrisation to input parameters"""
-    def __init__(self,
-        helper, lib_ssp, input_mode='none', transform=None,
-        sfr_bins=None, met_type='uni_idw', **kwargs
-    ):
+    def __init__(self, helper, lib_ssp):
         super().__init__()
-        n_free_sfh = 2
-        fixed_inds = []
-        fixed_params = []
-        for key, val in kwargs.items():
-            if key in helper.header:
-                fixed_inds.append(helper.lookup[key])
-                fixed_params.append(val)
-            elif key == 'sfh_disk' or key == 'sfh_bulge':
-                self.register_buffer(f"{key}_fixed", val)
-                n_free_sfh -= 1
-            else:
-                KeyError(f"Unknown parameter: {key}.")
-        self.n_params = len(helper.header)
-        self.n_free_sfh = n_free_sfh
-        self.fixed_inds = tuple(fixed_inds)
-        self.free_inds = tuple([i_p for i_p in range(self.n_params) if i_p not in fixed_inds])
-        self.register_buffer("fixed_params", torch.tensor(fixed_params, dtype=torch.float32))
-        if not hasattr(self, 'sfh_disk_fixed'):
-            self.sfh_disk_fixed = None
-        if not hasattr(self, 'sfh_bulge_fixed'):
-            self.sfh_bulge_fixed = None
-        self.input_mode = input_mode
-        self.transform = transform
+        self.n_gp = len(helper.header)
         self._set_log_met(lib_ssp)
-        self._set_free_shape(lib_ssp, sfr_bins, met_type)
+        self.configure(helper, lib_ssp)
 
 
     def forward(self, *args):
@@ -108,6 +88,19 @@ class Adapter(nn.Module):
             for idx in range(1, len(free_params), n_in)]
         free_params = (free_params[0], *sfh_params)
         return self.set_fixed_params(free_params)
+
+
+    def configure(self,
+        helper, lib_ssp, input_mode='flat', sfr_bins=None, met_type='discrete',
+        transform=None, fixed_params=None
+    ):
+        if fixed_params is None:
+            fixed_params = {}
+        self._set_fixed_params(helper, fixed_params)
+        #
+        self.input_mode = input_mode
+        self.transform = transform
+        self._set_free_shape(lib_ssp, sfr_bins, met_type)
 
 
     def preprocess(self, *args):
@@ -129,7 +122,7 @@ class Adapter(nn.Module):
     def set_fixed_params(self, free_params):
         gp_in = free_params[0]
         n_in = gp_in.size(0)
-        gp = torch.zeros([n_in, self.n_params], dtype=gp_in.dtype, device=gp_in.device)
+        gp = torch.zeros([n_in, self.n_gp], dtype=gp_in.dtype, device=gp_in.device)
         gp[:, self.fixed_inds] = self.fixed_params
         gp[:, self.free_inds] = gp_in
         if self.n_free_sfh == 0:
@@ -186,6 +179,29 @@ class Adapter(nn.Module):
         inv = 1./((log_met[:, None, :] - self.log_met)**2 + eps)
         weights = inv/inv.sum(dim=1)[:, None, :]
         return weights
+
+    
+    def _set_fixed_params(self, helper, fixed_params):
+        n_free_sfh = 2
+        fixed_inds = []
+        fixed_gp = []
+        for key, val in fixed_params.items():
+            if key in helper.header:
+                fixed_inds.append(helper.lookup[key])
+                fixed_gp.append(val)
+            elif key == 'sfh_disk' or key == 'sfh_bulge':
+                self.register_buffer(f"{key}_fixed", val)
+                n_free_sfh -= 1
+            else:
+                KeyError(f"Unknown parameter: {key}.")
+        self.n_free_sfh = n_free_sfh
+        self.fixed_inds = tuple(fixed_inds)
+        self.free_inds = tuple([i_p for i_p in range(self.n_gp) if i_p not in fixed_inds])
+        self.register_buffer("fixed_gp", torch.tensor(fixed_gp, dtype=torch.float32))
+        if not hasattr(self, 'sfh_disk_fixed'):
+            self.sfh_disk_fixed = None
+        if not hasattr(self, 'sfh_bulge_fixed'):
+            self.sfh_bulge_fixed = None
 
 
     def _set_free_shape(self, lib_ssp, sfr_bins, met_type):
