@@ -82,7 +82,7 @@ class Adapter(nn.Module):
 
 
     def forward(self, *args):
-        n_in = self.n_sfh_input
+        n_in = self.dim_sfh
         free_params = self.preprocess(*args)
         sfh_params = [self.derive_sfh(*free_params[idx : idx+n_in]) \
             for idx in range(1, len(free_params), n_in)]
@@ -205,26 +205,35 @@ class Adapter(nn.Module):
 
 
     def _set_free_shape(self, lib_ssp, sfr_bins, met_type):
-        if sfr_bins is None and met_type == 'discrete':
-            sfh_shape = [lib_ssp.n_ssp,]
-        elif sfr_bins is None and met_type == 'idw':
-            sfh_shape = [lib_ssp.n_tau, lib_ssp.n_met]
-        elif sfr_bins is None and met_type == 'uni_idw':
-            sfh_shape = [lib_ssp.n_tau, 1]
-        elif sfr_bins is not None and met_type == 'idw':
-            sfh_shape = [len(sfr_bins), lib_ssp.n_met]
-        elif sfr_bins is not None and met_type == 'uni_idw':
-            sfh_shape = [len(sfr_bins), 1]
+        if sfr_bins is None:
+            n_tau = lib_ssp.n_tau
         else:
-            raise ValueError("Unknown SFH type.")
-        n_sfh_input = 1 if met_type == 'discrete' else 2
+            n_tau = len(sfr_bins)
+
+        if met_type == 'discrete':
+            n_met = lib_ssp.n_met
+            dim_sfh = 1
+        elif met_type == 'idw' or met_type == 'uni_idw':
+            n_met = 1
+            dim_sfh = 2
+        else:
+            raise ValueError(f"Unknown met_type: {met_type}.")
+
+        if dim_sfh == 1:
+            free_shape = tuple(
+                [len(self.free_inds)] + [n_tau*n_met]*self.n_free_sfh
+            )
+        else:
+            free_shape = tuple(
+                [len(self.free_inds)] + [n_tau]*self.n_free_sfh + [n_met]*self.n_free_sfh
+            )
         # Set attributes
         self.sfr_bins = sfr_bins
         self.met_type = met_type
-        self.n_sfh_input = n_sfh_input
-        self.n_tau = lib_ssp.n_tau
-        self.sfh_shape = tuple(sfh_shape)
-        self.free_shape = tuple([len(self.free_inds)] + sfh_shape*self.n_free_sfh)
+        self.n_tau_ssp = lib_ssp.n_tau
+        self.dim_sfh = dim_sfh
+        self.free_shape = free_shape
+        self.input_size = sum(free_shape)
 
 
     def _set_log_met(self, lib_ssp):
