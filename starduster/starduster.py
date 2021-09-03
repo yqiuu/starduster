@@ -63,8 +63,8 @@ class MultiwavelengthSED(nn.Module):
         return torch.squeeze(self.converter(l_tot, return_ph))
 
 
-    def configure_output(self, **kwargs):
-        self.converter.configure(**kwargs)
+    def configure_output_format(self, filters=None, z=0., distmod=0.):
+        self.converter.configure(filters, z, distmod)
 
 
 class Adapter(nn.Module):
@@ -230,6 +230,7 @@ class Converter(nn.Module):
         super().__init__()
         self.register_buffer('lam', lam)
         self.lam_base = lam
+        self.configure()
         self._set_unit()
 
 
@@ -247,20 +248,18 @@ class Converter(nn.Module):
             return l_target*self.lam*(self.unit_f_nu*10**(-.4*self.distmod))
 
 
-    def configure(self, **kwargs):
-        filters = kwargs.setdefault('filters', None)
-        z = kwargs.setdefault('z', 0.)
+    def configure(self, filters=None, z=0., distmod=0.):
         lam = self.lam_base*(1 + z)
-        trans_filter = np.zeros([len(filters), len(lam)])
-        lam_pivot = np.zeros(len(filters))
-        for i_f, ftr in enumerate(filters):
-            trans_filter[i_f] = self._set_transmission(ftr, lam)
-            lam_pivot[i_f] = ftr.wave_pivot
-        self.register_buffer('trans_filter', torch.tensor(trans_filter, dtype=torch.float32))
-        self.register_buffer('lam_pivot', torch.tensor(lam_pivot, dtype=torch.float32))
-        #
-        self.distmod = kwargs.setdefault('distmod', 0.)
+        self.distmod = distmod
         self.register_buffer('lam', lam)
+        if filters is not None:
+            trans_filter = np.zeros([len(filters), len(lam)])
+            lam_pivot = np.zeros(len(filters))
+            for i_f, ftr in enumerate(filters):
+                trans_filter[i_f] = self._set_transmission(ftr, lam)
+                lam_pivot[i_f] = ftr.wave_pivot
+            self.register_buffer('trans_filter', torch.tensor(trans_filter, dtype=torch.float32))
+            self.register_buffer('lam_pivot', torch.tensor(lam_pivot, dtype=torch.float32))
 
 
     def _set_transmission(self, ftr, lam):
