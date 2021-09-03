@@ -229,7 +229,7 @@ class Converter(nn.Module):
     ----------
     filters : array
         An array of pyphot filter instances.
-    lam : tensor [AA]
+    lam : tensor [micormeter]
         Wavelength of the input fluxes.
     """
     def __init__(self, lam, distmod=0., z=0., filters=None):
@@ -263,14 +263,15 @@ class Converter(nn.Module):
 
     def _set_transmission(self, ftr, lam):
         """The given flux should be in L_sol."""
+        unit_lam = U.angstrom.to(U.micrometer)
         lam_pivot = ftr.wave_pivot
-        trans = np.interp(lam, ftr.wavelength, ftr.transmission, left=0., right=0.)
+        trans = np.interp(lam, ftr.wavelength*unit_lam, ftr.transmission, left=0., right=0.)
         trans = trans/np.trapz(trans/lam, lam)*self.unit_ab
         return lam_pivot, trans
 
 
     def _set_unit(self, distmod):
-        unit_f_nu = U.solLum/(4*np.pi*(10*U.parsec)**2)*U.angstrom/constants.c*10**(-.4*distmod)
+        unit_f_nu = U.solLum/(4*np.pi*(10*U.parsec)**2)*U.micrometer/constants.c*10**(-.4*distmod)
         self.unit_f_nu = unit_f_nu.to(U.jansky).value
         self.unit_ab = self.unit_f_nu/3631
 
