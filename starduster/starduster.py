@@ -23,8 +23,8 @@ class MultiwavelengthSED(nn.Module):
         Dust emission module.
     lam : tensor [AA]
         Wavelength of the resulting SEDs.
-    converter : module
-        Converter.
+    detector : module
+        Detector.
     """
     def __init__(self, helper, lib_ssp, dust_attenuation, dust_emission, adapter=None):
         super().__init__()
@@ -32,7 +32,7 @@ class MultiwavelengthSED(nn.Module):
         self.lib_ssp = lib_ssp
         self.dust_attenuation = dust_attenuation
         self.dust_emission = dust_emission
-        self.converter = Converter(lib_ssp.lam)
+        self.detector = Detector(lib_ssp.lam)
         if adapter is None:
             self.adapter = Adapter(helper, lib_ssp)
         else:
@@ -60,11 +60,11 @@ class MultiwavelengthSED(nn.Module):
         l_dust = self.helper.set_item(torch.zeros_like(l_main), 'slice_lam_de', l_dust_slice)
         l_norm = self.helper.get_recover(params, 'l_norm', torch)[:, None]
         l_tot = l_norm*(l_main + frac*l_dust)
-        return torch.squeeze(self.converter(l_tot, return_ph))
+        return torch.squeeze(self.detector(l_tot, return_ph))
 
 
     def configure_output_format(self, filters=None, z=0., distmod=0.):
-        self.converter.configure(filters, z, distmod)
+        self.detector.configure(filters, z, distmod)
 
 
 class Adapter(nn.Module):
@@ -216,7 +216,7 @@ class Adapter(nn.Module):
         self.log_met = torch.log10(lib_ssp.met/met_sol)[:, None]
 
 
-class Converter(nn.Module):
+class Detector(nn.Module):
     """Apply unit conversion and filters to the input fluxes.
     
     Parameters
