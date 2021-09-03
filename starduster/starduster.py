@@ -26,26 +26,23 @@ class MultiwavelengthSED(nn.Module):
     converter : module
         Converter.
     """
-    def __init__(self, helper, lib_ssp, dust_attenuation, dust_emission, converter, adapter=None):
+    def __init__(self, helper, lib_ssp, dust_attenuation, dust_emission, adapter=None):
         super().__init__()
         self.helper = helper
         self.lib_ssp = lib_ssp
         self.dust_attenuation = dust_attenuation
         self.dust_emission = dust_emission
-        self.converter = converter
+        self.converter = Converter(lib_ssp.lam)
         if adapter is None:
             self.adapter = Adapter(helper, lib_ssp)
         else:
             self.adapter = adapter
-        self.lam = converter.lam
-        self.lam_pivot = converter.lam_pivot
-        self.return_ph = self.lam_pivot is not None
+        self.return_ph = True
 
 
     @classmethod
     def from_checkpoint(
-        cls, lib_ssp, fname_da_disk, fname_da_bulge, fname_de,
-        converter, adapter=None, map_location=None
+        cls, lib_ssp, fname_da_disk, fname_da_bulge, fname_de, adapter=None, map_location=None
     ):
         curve_disk, _ = load_model(fname_da_disk, AttenuationCurve, map_location=map_location)
         curve_bulge, _ = load_model(fname_da_bulge, AttenuationCurve, map_location=map_location)
@@ -53,7 +50,7 @@ class MultiwavelengthSED(nn.Module):
             DustEmission.from_checkpoint(fname_de, lib_ssp.L_ssp, map_location=map_location)
         helper = dust_emission.helper
         dust_attenuation = DustAttenuation(helper, curve_disk, curve_bulge, lib_ssp.l_ssp)
-        return cls(helper, lib_ssp, dust_attenuation, dust_emission, converter, adapter)
+        return cls(helper, lib_ssp, dust_attenuation, dust_emission, adapter)
 
         
     def forward(self, *args):
@@ -69,8 +66,11 @@ class MultiwavelengthSED(nn.Module):
     def predict(self, *args, return_ph=False):
         self.return_ph = return_ph
         retval = self(*args)
-        self.return_ph = self.lam_pivot is not None
         return retval
+
+
+    def configure_output(self, **kwargs):
+        self.converter.configure(**kwargs)
 
 
 class Adapter(nn.Module):
@@ -232,20 +232,11 @@ class Converter(nn.Module):
     lam : tensor [micormeter]
         Wavelength of the input fluxes.
     """
-    def __init__(self, lam, distmod=0., z=0., filters=None):
+    def __init__(self, lam):
         super().__init__()
-        self._set_unit(distmod)
-        lam = lam*(1 + z)
-        if filters is None:
-            self.lam_pivot = None
-        else:
-            trans_filter = np.zeros([len(filters), len(lam)])
-            lam_pivot = np.zeros(len(filters))
-            for i_f, ftr in enumerate(filters):
-                lam_pivot[i_f], trans_filter[i_f] = self._set_transmission(ftr, lam)
-            self.register_buffer('trans_filter', torch.tensor(trans_filter, dtype=torch.float32))
-            self.register_buffer('lam_pivot', torch.tensor(lam_pivot, dtype=torch.float32))
         self.register_buffer('lam', lam)
+        self.lam_base = lam
+        self._set_unit()
 
 
     def forward(self, l_target, return_ph):
@@ -256,22 +247,38 @@ class Converter(nn.Module):
             Generalized flux density (nu*f_nu).
         """
         if return_ph:
-            return -2.5*torch.log10(torch.trapz(l_target[:, None, :]*self.trans_filter, self.lam))
+            fluxes = torch.trapz(l_target[:, None, :]*self.trans_filter, self.lam)
+            return -2.5*torch.log10(fluxes) + self.distmod
         else:
-            return l_target*self.lam*self.unit_f_nu
+            return l_target*self.lam*(self.unit_f_nu*10**(-.4*self.distmod))
+
+
+    def configure(self, **kwargs):
+        filters = kwargs.setdefault('filters', None)
+        z = kwargs.setdefault('z', 0.)
+        lam = self.lam_base*(1 + z)
+        trans_filter = np.zeros([len(filters), len(lam)])
+        lam_pivot = np.zeros(len(filters))
+        for i_f, ftr in enumerate(filters):
+            trans_filter[i_f] = self._set_transmission(ftr, lam)
+            lam_pivot[i_f] = ftr.wave_pivot
+        self.register_buffer('trans_filter', torch.tensor(trans_filter, dtype=torch.float32))
+        self.register_buffer('lam_pivot', torch.tensor(lam_pivot, dtype=torch.float32))
+        #
+        self.distmod = kwargs.setdefault('distmod', 0.)
+        self.register_buffer('lam', lam)
 
 
     def _set_transmission(self, ftr, lam):
         """The given flux should be in L_sol."""
         unit_lam = U.angstrom.to(U.micrometer)
-        lam_pivot = ftr.wave_pivot
         trans = np.interp(lam, ftr.wavelength*unit_lam, ftr.transmission, left=0., right=0.)
         trans = trans/np.trapz(trans/lam, lam)*self.unit_ab
-        return lam_pivot, trans
+        return trans
 
 
-    def _set_unit(self, distmod):
-        unit_f_nu = U.solLum/(4*np.pi*(10*U.parsec)**2)*U.micrometer/constants.c*10**(-.4*distmod)
+    def _set_unit(self):
+        unit_f_nu = U.solLum/(4*np.pi*(10*U.parsec)**2)*U.micrometer/constants.c
         self.unit_f_nu = unit_f_nu.to(U.jansky).value
         self.unit_ab = self.unit_f_nu/3631
 
