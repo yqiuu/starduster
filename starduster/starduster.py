@@ -235,7 +235,10 @@ class Adapter(nn.Module):
         if met_type == 'discrete':
             n_met = lib_ssp.n_met
             dim_sfh = 1
-        elif met_type == 'idw' or met_type == 'uni_idw':
+        elif met_type == 'idw':
+            n_met = lib_ssp.n_met
+            dim_sfh = 2
+        elif met_type == 'uni_idw':
             n_met = 1
             dim_sfh = 2
         else:
