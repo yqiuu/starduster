@@ -241,6 +241,9 @@ class Adapter(nn.Module):
         else:
             raise ValueError(f"Unknown met_type: {met_type}.")
 
+        if sfr_bins is not None and met_type == 'discrete':
+            raise ValueError(f"SFR bins with discrete metallicity are not implemented.")
+        
         if dim_sfh == 1:
             free_shape = tuple(
                 [len(self.free_inds)] + [n_tau*n_met]*self.n_free_sfh
