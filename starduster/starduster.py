@@ -61,10 +61,18 @@ class MultiwavelengthSED(nn.Module):
 
 
     def configure_input_format(self,
-        input_mode='flat', sfr_bins=None, met_type='discrete', transform=None, fixed_params=None
+        input_mode='flat', sfr_bins=None, met_type='discrete',
+        simplex_transform=True, transform=None, fixed_params=None
     ):
         self.adapter.configure(
-            self.helper, self.lib_ssp, input_mode, sfr_bins, met_type, transform, fixed_params
+            helper=self.helper,
+            lib_ssp=self.lib_ssp,
+            input_mode=input_mode,
+            sfr_bins=sfr_bins,
+            met_type=met_type,
+            simplex_transform=simplex_transform,
+            transform=transform,
+            fixed_params=fixed_params
         )
 
 
@@ -92,27 +100,39 @@ class Adapter(nn.Module):
 
     def configure(self,
         helper, lib_ssp, input_mode='flat', sfr_bins=None, met_type='discrete',
-        transform=None, fixed_params=None
+        simplex_transform=True, transform=None, fixed_params=None
     ):
         if fixed_params is None:
             fixed_params = {}
         self._set_fixed_params(helper, fixed_params)
         #
         self.input_mode = input_mode
+        self.simplex_transform = simplex_transform
         self.transform = transform
         self._set_free_shape(lib_ssp, sfr_bins, met_type)
 
 
     def preprocess(self, *args):
+        def simplex_transform(x):
+            """Transform a hypercube into a simplex."""
+            x = -np.log(x)
+            x = x/x.sum(dim=-1)
+            return x
+
         if self.input_mode == 'numpy':
             args = torch.as_tensor(args[0], dtype=torch.float32)
             free_params = self.unflatten(args)
         elif self.input_mode == 'flat':
             free_params = self.unflatten(args[0])
         elif self.input_mode == 'none':
-            free_params = args
+            free_params = list(args)
         else:
             raise ValueError("Unknown mode: {}".format(self.input_mode))
+        if self.simplex_transform:
+            if self.n_free_sfh > 0:
+                free_params[1] = simplex_transform(free_params[1])
+            if self.n_free_sfh == 2:
+                free_params[2] = simplex_transform(free_params[2])
         if self.transform is not None:
             free_params = self.transform(*free_params)
             assert(type(free_params) is tuple)
@@ -150,7 +170,7 @@ class Adapter(nn.Module):
             idx_e = idx_b + size
             x_out[i_input] = x_in[:, idx_b:idx_e]
             idx_b = idx_e
-        return tuple(x_out)
+        return x_out
 
     
     def derive_sfh(self, sfr, log_met=None):
