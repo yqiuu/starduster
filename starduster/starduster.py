@@ -310,7 +310,7 @@ class Detector(nn.Module):
             lam_pivot = np.zeros(len(filters))
             for i_f, ftr in enumerate(filters):
                 trans_filter[i_f] = self._set_transmission(ftr, lam)
-                lam_pivot[i_f] = ftr.wave_pivot
+                lam_pivot[i_f] = self._set_lam_pivot(ftr)
             self.register_buffer('trans_filter', torch.tensor(trans_filter, dtype=torch.float32))
             self.register_buffer('lam_pivot', torch.tensor(lam_pivot, dtype=torch.float32))
 
@@ -321,6 +321,10 @@ class Detector(nn.Module):
         trans = np.interp(lam, ftr.wavelength*unit_lam, ftr.transmission, left=0., right=0.)
         trans = trans/np.trapz(trans/lam, lam)*self.unit_ab
         return trans
+
+
+    def _set_lam_pivot(self, ftr):
+        return ftr.wave_pivot*U.angstrom.to(U.micrometer)
 
 
     def _set_unit(self):
