@@ -77,7 +77,7 @@ class MultiwavelengthSED(nn.Module):
 
 
     def configure_output_format(self, filters=None, z=0., distmod=0.):
-        self.detector.configure(filters, z, distmod)
+        self.detector.configure(filters=filters, z=z, distmod=distmod)
 
 
 class Adapter(nn.Module):
