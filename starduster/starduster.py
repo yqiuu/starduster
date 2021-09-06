@@ -90,12 +90,9 @@ class Adapter(nn.Module):
 
 
     def forward(self, *args):
-        n_in = self.dim_sfh
         free_params = self.derive_free_params(*args)
-        sfh_params = [self.derive_sfh(*free_params[idx : idx+n_in]) \
-            for idx in range(1, len(free_params), n_in)]
-        free_params = (free_params[0], *sfh_params)
-        return self.set_fixed_params(free_params)
+        model_params = self.derive_model_params(free_params)
+        return model_params
 
 
     def configure(self,
@@ -139,25 +136,28 @@ class Adapter(nn.Module):
         return free_params
 
 
-    def set_fixed_params(self, free_params):
+    def derive_model_params(self, free_params):
+        # Set fixed galaxy parameters
         gp_in = free_params[0]
         n_in = gp_in.size(0)
         gp = torch.zeros([n_in, self.n_gp], dtype=gp_in.dtype, device=gp_in.device)
         gp[:, self.fixed_inds] = self.fixed_gp
         gp[:, self.free_inds] = gp_in
+        # Set fixed star formation histories
         if self.n_free_sfh == 0:
             sfh_disk = self.sfh_disk_fixed.tile((n_in, 1))
             sfh_bulge = self.sfh_bulge_fixed.tile((n_in, 1))
         elif self.n_free_sfh == 1:
             if 'sfh_disk' in self.fixed_sfh:
                 sfh_disk = self.sfh_disk_fixed.tile((n_in, 1))
-                sfh_bulge = free_params[1]
+                sfh_bulge = self.derive_sfh(*free_params[1:])
             if 'sfh_bulge' in self.fixed_sfh:
                 sfh_bulge = self.sfh_bulge_fixed.tile((n_in, 1))
-                sfh_disk = free_params[1]
+                sfh_disk = self.derive_sfh(*free_params[1:])
         elif self.n_free_sfh == 2:
-            sfh_disk = free_params[1]
-            sfh_bulge = free_params[2]
+            sfh_disk = self.derive_sfh(*free_params[1::2])
+            sfh_bulge = self.derive_sfh(*free_params[2::2])
+        #
         return gp, sfh_disk, sfh_bulge
 
 
