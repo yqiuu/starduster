@@ -123,18 +123,18 @@ class Adapter(nn.Module):
         gp_in = free_params[0]
         n_in = gp_in.size(0)
         gp = torch.zeros([n_in, self.n_gp], dtype=gp_in.dtype, device=gp_in.device)
-        gp[:, self.fixed_inds] = self.fixed_params
+        gp[:, self.fixed_inds] = self.fixed_gp
         gp[:, self.free_inds] = gp_in
         if self.n_free_sfh == 0:
             sfh_disk = self.sfh_disk_fixed.tile((n_in, 1))
             sfh_bulge = self.sfh_bulge_fixed.tile((n_in, 1))
         elif self.n_free_sfh == 1:
-            if self.sfh_disk_fixed is None:
-                sfh_disk = free_params[1]
-                sfh_bulge = self.sfh_bulge_fixed.tile((n_in, 1))
-            if self.sfh_bulge_fixed is None:
+            if 'sfh_disk' in self.fixed_sfh:
                 sfh_disk = self.sfh_disk_fixed.tile((n_in, 1))
                 sfh_bulge = free_params[1]
+            if 'sfh_bulge' in self.fixed_sfh:
+                sfh_bulge = self.sfh_bulge_fixed.tile((n_in, 1))
+                sfh_disk = free_params[1]
         elif self.n_free_sfh == 2:
             sfh_disk = free_params[1]
             sfh_bulge = free_params[2]
@@ -182,26 +182,28 @@ class Adapter(nn.Module):
 
     
     def _set_fixed_params(self, helper, fixed_params):
+        self.register_buffer('sfh_disk', torch.tensor(0.))
+        self.register_buffer('sfh_bulge', torch.tensor(0.))
+
         n_free_sfh = 2
         fixed_inds = []
         fixed_gp = []
+        fixed_sfh = []
         for key, val in fixed_params.items():
             if key in helper.header:
                 fixed_inds.append(helper.lookup[key])
                 fixed_gp.append(val)
             elif key == 'sfh_disk' or key == 'sfh_bulge':
                 self.register_buffer(f"{key}_fixed", val)
+                fixed_sfh.append(key)
                 n_free_sfh -= 1
             else:
                 KeyError(f"Unknown parameter: {key}.")
         self.n_free_sfh = n_free_sfh
         self.fixed_inds = tuple(fixed_inds)
         self.free_inds = tuple([i_p for i_p in range(self.n_gp) if i_p not in fixed_inds])
+        self.fixed_sfh = fixed_sfh
         self.register_buffer("fixed_gp", torch.tensor(fixed_gp, dtype=torch.float32))
-        if not hasattr(self, 'sfh_disk_fixed'):
-            self.sfh_disk_fixed = None
-        if not hasattr(self, 'sfh_bulge_fixed'):
-            self.sfh_bulge_fixed = None
 
 
     def _set_free_shape(self, lib_ssp, sfr_bins, met_type):
