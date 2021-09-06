@@ -30,7 +30,7 @@ class Posterior(nn.Module):
         if self._output_mode == 'numpy_grad':
             x_in = torch.tensor(x_in, dtype=torch.float32, requires_grad=True)
         y = self.sed_model(x_in)
-        free_params = self.sed_model.adapter.preprocess(x_in)
+        #free_params = self.sed_model.adapter.preprocess(x_in)
         log_post = self._sign*self.log_like(y)# + self.log_prior(*free_params)
         if self._output_mode == 'numpy':
             return log_post.detach().numpy()
