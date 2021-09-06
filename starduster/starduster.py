@@ -91,7 +91,7 @@ class Adapter(nn.Module):
 
     def forward(self, *args):
         n_in = self.dim_sfh
-        free_params = self.preprocess(*args)
+        free_params = self.derive_free_params(*args)
         sfh_params = [self.derive_sfh(*free_params[idx : idx+n_in]) \
             for idx in range(1, len(free_params), n_in)]
         free_params = (free_params[0], *sfh_params)
@@ -112,7 +112,7 @@ class Adapter(nn.Module):
         self._set_free_shape(lib_ssp, sfr_bins, met_type)
 
 
-    def preprocess(self, *args):
+    def derive_free_params(self, *args):
         def simplex_transform(x):
             """Transform a hypercube into a simplex."""
             x = -np.log(x)
