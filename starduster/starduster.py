@@ -114,7 +114,7 @@ class Adapter(nn.Module):
         def simplex_transform(x):
             """Transform a hypercube into a simplex."""
             x = -np.log(x)
-            x = x/x.sum(dim=-1)
+            x = x/x.sum(dim=-1)[:, None]
             return x
 
         if self.input_mode == 'numpy':
