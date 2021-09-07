@@ -115,7 +115,7 @@ class Adapter(nn.Module):
     def derive_free_params(self, params):
         def simplex_transform(x):
             """Transform a hypercube into a simplex."""
-            x = -np.log(x)
+            x = -torch.log(x)
             x = x/x.sum(dim=-1)[:, None]
             return x
 
