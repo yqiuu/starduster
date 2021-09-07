@@ -251,16 +251,20 @@ class Adapter(nn.Module):
             free_shape = tuple(
                 [len(self.free_inds)] + [n_tau*n_met]*self.n_free_sfh
             )
+            bounds = [(-1., 1.)]*len(self.free_inds) + [(0., 1.)]*n_tau*n_met*self.n_free_sfh
         else:
             free_shape = tuple(
                 [len(self.free_inds)] + [n_tau]*self.n_free_sfh + [n_met]*self.n_free_sfh
             )
+            bounds = [(-1., 1.)]*len(self.free_inds) + [(0., 1.)]*n_tau*self.n_free_sfh \
+                + [(float(self.log_met[0]), float(self.log_met[-1]))]*n_met*self.n_free_sfh
         # Set attributes
         self.sfr_bins = sfr_bins
         self.met_type = met_type
         self.n_tau_ssp = lib_ssp.n_tau
         self.dim_sfh = dim_sfh
         self.free_shape = free_shape
+        self.bounds = bounds
         self.input_size = sum(free_shape)
 
 
