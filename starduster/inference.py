@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from torch import nn
 from torch.nn import functional as F
+from tqdm import tqdm
 
 
 class GaussianLikelihood(nn.Module):
@@ -49,4 +50,35 @@ class Posterior(nn.Module):
             self._sign = -1.
         else:
             self._sign = 1.
+
+
+class OptimizerWrapper(nn.Module):
+    def __init__(self, log_post, x0=None):
+        super().__init__()
+        if x0 is None:
+            self.params = nn.Parameter(torch.full((log_post.sed_model.adapter.input_size,), .5))
+        else:
+            self.params = nn.Parameter(x0)
+        # Save log_post as a tuple to prevent addtional parameters
+        self._log_post = log_post,
+
+
+    def forward(self):
+        return self._log_post[0](self.params)
+
+
+def optimize(log_post, cls_opt, x0=None, n_step=1000, lr=1e-2, **kwargs_opt):
+    model = OptimizerWrapper(log_post, x0)
+    opt = cls_opt(model.parameters(), lr=lr, **kwargs_opt)
+    with tqdm(total=n_step) as pbar:
+        for i_step in range(n_step):
+            loss = model()
+            loss.backward()
+            opt.step()
+            opt.zero_grad()
+
+            pbar.set_description('loss: %.3e'%float(loss))
+            pbar.update()
+
+    return model.params.detach()
 
