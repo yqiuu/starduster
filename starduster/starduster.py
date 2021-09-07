@@ -63,7 +63,7 @@ class MultiwavelengthSED(nn.Module):
 
     def configure_input_format(self,
         input_mode='flat', sfr_bins=None, met_type='discrete',
-        simplex_transform=True, transform=None, fixed_params=None
+        bounds_transform=True, simplex_transform=True, transform=None, fixed_params=None
     ):
         self.adapter.configure(
             helper=self.helper,
@@ -71,6 +71,7 @@ class MultiwavelengthSED(nn.Module):
             input_mode=input_mode,
             sfr_bins=sfr_bins,
             met_type=met_type,
+            bounds_transform=bounds_transform,
             simplex_transform=simplex_transform,
             transform=transform,
             fixed_params=fixed_params
