@@ -9,6 +9,7 @@ from astropy import units as U
 from astropy import constants
 import torch
 from torch import nn
+from torch.nn import functional as F
 
 
 class MultiwavelengthSED(nn.Module):
@@ -123,6 +124,11 @@ class Adapter(nn.Module):
             pass
         else:
             raise ValueError("Unknown mode: {}".format(self.input_mode))
+
+        if self.bounds_transform:
+            eps = 1e-6
+            params = F.hardtanh(params, eps, 1 - eps)
+            params = (self.ubounds - self.lbounds)*params + self.lbounds
 
         free_params = self.unflatten(params)
         if self.simplex_transform:
