@@ -89,27 +89,28 @@ class Adapter(nn.Module):
         self.configure(helper, lib_ssp)
 
 
-    def forward(self, *args):
-        free_params = self.derive_free_params(*args)
+    def forward(self, params):
+        free_params = self.derive_free_params(params)
         model_params = self.derive_model_params(free_params)
         return model_params
 
 
     def configure(self,
-        helper, lib_ssp, input_mode='flat', sfr_bins=None, met_type='discrete',
-        simplex_transform=True, transform=None, fixed_params=None
+        helper, lib_ssp, input_mode='torch', sfr_bins=None, met_type='discrete',
+        bounds_transform=True, simplex_transform=True, transform=None, fixed_params=None
     ):
         if fixed_params is None:
             fixed_params = {}
         self._set_fixed_params(helper, fixed_params)
         #
         self.input_mode = input_mode
+        self.bounds_transform = bounds_transform
         self.simplex_transform = simplex_transform
         self.transform = transform
         self._set_free_shape(lib_ssp, sfr_bins, met_type)
 
 
-    def derive_free_params(self, *args):
+    def derive_free_params(self, params):
         def simplex_transform(x):
             """Transform a hypercube into a simplex."""
             x = -np.log(x)
@@ -117,14 +118,13 @@ class Adapter(nn.Module):
             return x
 
         if self.input_mode == 'numpy':
-            args = torch.as_tensor(args[0], dtype=torch.float32)
-            free_params = self.unflatten(args)
-        elif self.input_mode == 'flat':
-            free_params = self.unflatten(args[0])
-        elif self.input_mode == 'none':
-            free_params = list(args)
+            params = torch.as_tensor(params, dtype=torch.float32)
+        elif self.input_mode == 'torch':
+            pass
         else:
             raise ValueError("Unknown mode: {}".format(self.input_mode))
+
+        free_params = self.unflatten(params)
         if self.simplex_transform:
             if self.n_free_sfh > 0:
                 free_params[1] = simplex_transform(free_params[1])
@@ -264,8 +264,15 @@ class Adapter(nn.Module):
         self.n_tau_ssp = lib_ssp.n_tau
         self.dim_sfh = dim_sfh
         self.free_shape = free_shape
-        self.bounds = bounds
         self.input_size = sum(free_shape)
+        #
+        if self.bounds_transform:
+            lbounds, ubounds = torch.tensor(bounds, dtype=torch.float32).T
+            self.register_buffer('lbounds', lbounds)
+            self.register_buffer('ubounds', ubounds)
+            self.bounds = [(0, 1)]*self.input_size
+        else:
+            self.bounds = bounds
 
 
     def _set_log_met(self, lib_ssp):
