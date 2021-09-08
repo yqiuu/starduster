@@ -62,19 +62,19 @@ class MultiwavelengthSED(nn.Module):
 
 
     def configure_input_format(self,
-        input_mode='flat', sfr_bins=None, met_type='discrete',
-        bounds_transform=True, simplex_transform=True, transform=None, fixed_params=None
+        sfr_bins=None, met_type='discrete', bounds_transform=True,
+        simplex_transform=True, transform=None, fixed_params=None, device='cpu',
     ):
         self.adapter.configure(
             helper=self.helper,
             lib_ssp=self.lib_ssp,
-            input_mode=input_mode,
             sfr_bins=sfr_bins,
             met_type=met_type,
             bounds_transform=bounds_transform,
             simplex_transform=simplex_transform,
             transform=transform,
-            fixed_params=fixed_params
+            fixed_params=fixed_params,
+            device=device,
         )
 
 
@@ -98,17 +98,14 @@ class Adapter(nn.Module):
 
 
     def configure(self,
-        helper, lib_ssp, input_mode='torch', sfr_bins=None, met_type='discrete',
-        bounds_transform=True, simplex_transform=True, transform=None, fixed_params=None
+        helper, lib_ssp, sfr_bins=None, met_type='discrete', bounds_transform=True,
+        simplex_transform=True, transform=None, fixed_params=None, device='cpu'
     ):
-        if fixed_params is None:
-            fixed_params = {}
-        self._set_fixed_params(helper, fixed_params)
-        #
-        self.input_mode = input_mode
+        self.device = device
         self.bounds_transform = bounds_transform
         self.simplex_transform = simplex_transform
         self.transform = transform
+        self._set_fixed_params(helper, fixed_params)
         self._set_free_shape(lib_ssp, sfr_bins, met_type)
 
 
@@ -119,13 +116,7 @@ class Adapter(nn.Module):
             x = x/x.sum(dim=-1)[:, None]
             return x
 
-        if self.input_mode == 'numpy':
-            params = torch.as_tensor(params, dtype=torch.float32)
-        elif self.input_mode == 'torch':
-            pass
-        else:
-            raise ValueError("Unknown mode: {}".format(self.input_mode))
-
+        params = torch.as_tensor(params, dtype=torch.float32, device=self.device)
         if self.bounds_transform:
             eps = 1e-6
             params = F.hardtanh(params, eps, 1 - eps)
@@ -209,8 +200,11 @@ class Adapter(nn.Module):
 
     
     def _set_fixed_params(self, helper, fixed_params):
-        self.register_buffer('sfh_disk', torch.tensor(0.))
-        self.register_buffer('sfh_bulge', torch.tensor(0.))
+        if fixed_params is None:
+            fixed_params = {}
+
+        self.register_buffer('sfh_disk', torch.tensor(0., device=self.device))
+        self.register_buffer('sfh_bulge', torch.tensor(0., device=self.device))
 
         n_free_sfh = 2
         fixed_inds = []
@@ -230,7 +224,8 @@ class Adapter(nn.Module):
         self.fixed_inds = tuple(fixed_inds)
         self.free_inds = tuple([i_p for i_p in range(self.n_gp) if i_p not in fixed_inds])
         self.fixed_sfh = fixed_sfh
-        self.register_buffer("fixed_gp", torch.tensor(fixed_gp, dtype=torch.float32))
+        self.register_buffer("fixed_gp",
+            torch.tensor(fixed_gp, dtype=torch.float32, device=self.device))
 
 
     def _set_free_shape(self, lib_ssp, sfr_bins, met_type):
@@ -274,7 +269,7 @@ class Adapter(nn.Module):
         self.input_size = sum(free_shape)
         #
         if self.bounds_transform:
-            lbounds, ubounds = torch.tensor(bounds, dtype=torch.float32).T
+            lbounds, ubounds = torch.tensor(bounds, dtype=torch.float32, device=self.device).T
             self.register_buffer('lbounds', lbounds)
             self.register_buffer('ubounds', ubounds)
             self.bounds = [(0, 1)]*self.input_size
@@ -284,7 +279,7 @@ class Adapter(nn.Module):
 
     def _set_log_met(self, lib_ssp):
         met_sol = 0.019
-        self.log_met = torch.log10(lib_ssp.met/met_sol)[:, None]
+        self.register_buffer('log_met', torch.log10(lib_ssp.met/met_sol)[:, None])
 
 
 class Detector(nn.Module):

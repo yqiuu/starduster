@@ -52,7 +52,7 @@ class DustAttenuation(nn.Module):
         self.helper = helper
         self.curve_disk = curve_disk
         self.curve_bulge = curve_bulge
-        self.l_ssp = l_ssp
+        self.register_buffer('l_ssp', l_ssp, persistent=False)
         #
         self._b2t_name = 'b_to_t'
 

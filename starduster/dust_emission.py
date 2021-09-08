@@ -24,7 +24,7 @@ class DustEmission(nn.Module):
         self.distri = distri
         self.frac_disk = frac_disk
         self.frac_bulge = frac_bulge
-        self.L_ssp = L_ssp
+        self.register_buffer('L_ssp', L_ssp, persistent=False)
         #
         self._b2t_name = 'b_to_t'
 
