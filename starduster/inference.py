@@ -79,10 +79,10 @@ class OptimizerWrapper(nn.Module):
         return self._log_post[0](self.params)
 
 
-def optimize(log_post, cls_opt, x0=None, n_step=1000, lr=1e-2, **kwargs_opt):
+def optimize(log_post, cls_opt, x0=None, n_step=1000, lr=1e-2, progress_bar=True, **kwargs_opt):
     model = OptimizerWrapper(log_post, x0)
     opt = cls_opt(model.parameters(), lr=lr, **kwargs_opt)
-    with tqdm(total=n_step) as pbar:
+    with tqdm(total=n_step, disable=(not progress_bar)) as pbar:
         for i_step in range(n_step):
             loss = model()
             loss.backward()
