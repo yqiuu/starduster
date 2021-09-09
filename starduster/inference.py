@@ -16,9 +16,7 @@ class GaussianLikelihood(nn.Module):
     
     
 class Posterior(nn.Module):
-    def __init__(self,
-        sed_model, log_like, log_prior=None, output_mode='none', negative=False, log_out=-1e15
-    ):
+    def __init__(self, sed_model, log_like, log_prior=None):
         super().__init__()
         self.sed_model = sed_model
         self.log_like = log_like
@@ -26,8 +24,7 @@ class Posterior(nn.Module):
             self.log_prior = lambda *args: 0.
         else:
             self.log_prior = log_prior
-        self.set_output_mode(output_mode, negative)
-        self.log_out = log_out
+        self.configure_output_mode()
 
 
     def forward(self, params):
@@ -55,7 +52,7 @@ class Posterior(nn.Module):
         return log_post
     
 
-    def set_output_mode(self, output_mode='torch', negative=False):
+    def configure_output_mode(self, output_mode='torch', negative=False, log_out=-1e15):
         if output_mode in ['torch', 'numpy', 'numpy_grad']:
             self._output_mode = output_mode
         else:
@@ -64,6 +61,7 @@ class Posterior(nn.Module):
             self._sign = -1.
         else:
             self._sign = 1.
+        self.log_out = log_out
 
 
 class OptimizerWrapper(nn.Module):
