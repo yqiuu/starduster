@@ -75,7 +75,7 @@ class MultiwavelengthSED(nn.Module):
         return torch.squeeze(self.detector(l_tot, return_ph))
 
 
-    def configure_input_format(self,
+    def configure_input_mode(self,
         sfr_bins=None, met_type='discrete', bounds_transform=True,
         simplex_transform=True, transform=None, fixed_params=None, device='cpu',
     ):
@@ -92,7 +92,7 @@ class MultiwavelengthSED(nn.Module):
         )
 
 
-    def configure_output_format(self, filters=None, z=0., distmod=0.):
+    def configure_output_mode(self, filters=None, z=0., distmod=0.):
         self.detector.configure(filters=filters, z=z, distmod=distmod)
 
 
