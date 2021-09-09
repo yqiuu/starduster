@@ -16,7 +16,9 @@ class GaussianLikelihood(nn.Module):
     
     
 class Posterior(nn.Module):
-    def __init__(self, sed_model, log_like, log_prior=None, output_mode='none', negative=False):
+    def __init__(self,
+        sed_model, log_like, log_prior=None, output_mode='none', negative=False, log_out=-1e15
+    ):
         super().__init__()
         self.sed_model = sed_model
         self.log_like = log_like
@@ -25,19 +27,25 @@ class Posterior(nn.Module):
         else:
             self.log_prior = log_prior
         self.set_output_mode(output_mode, negative)
+        self.log_out = log_out
 
 
-    def forward(self, x_in):
+    def forward(self, params):
         if self._output_mode == 'numpy_grad':
-            x_in = torch.tensor(x_in, dtype=torch.float32, requires_grad=True)
-        y = self.sed_model(x_in)
-        #free_params = self.sed_model.adapter.preprocess(x_in)
-        log_post = self._sign*self.log_like(y)# + self.log_prior(*free_params)
+            params = torch.tensor(params, dtype=torch.float32, requires_grad=True)
+
+        sed_model = self.sed_model
+        free_params, is_out = sed_model.adapter.derive_free_params(params, check_bounds=True)
+        model_params = sed_model.adapter.derive_model_params(free_params)
+        log_out = is_out*self.log_out
+        y = sed_model.generate(*model_params)
+        #free_params = self.sed_model.adapter.preprocess(params)
+        log_post = self._sign*(self.log_like(y) + log_out)
         if self._output_mode == 'numpy':
             return log_post.detach().cpu().numpy()
         elif self._output_mode == 'numpy_grad':
             log_post.backward()
-            return log_post.detach().cpu().numpy(), np.array(x_in.grad.cpu(), dtype=np.float64)
+            return log_post.detach().cpu().numpy(), np.array(params.grad.cpu(), dtype=np.float64)
         return log_post
     
 
@@ -56,7 +64,7 @@ class OptimizerWrapper(nn.Module):
     def __init__(self, log_post, x0=None):
         super().__init__()
         if x0 is None:
-            self.params = nn.Parameter(torch.full((log_post.sed_model.adapter.input_size,), .5))
+            self.params = nn.Parameter(torch.full((1, log_post.sed_model.adapter.input_size), .5))
         else:
             self.params = nn.Parameter(x0)
         # Save log_post as a tuple to prevent addtional parameters

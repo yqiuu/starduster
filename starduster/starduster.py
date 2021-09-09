@@ -52,11 +52,14 @@ class MultiwavelengthSED(nn.Module):
 
 
     def forward(self, *args, return_ph=True):
-        params, sfh_disk, sfh_bulge = self.adapter(*args)
-        l_main = self.dust_attenuation(params, sfh_disk, sfh_bulge)
-        l_dust_slice, frac = self.dust_emission(params, sfh_disk, sfh_bulge)
+        return self.generate(*self.adapter(*args), return_ph)
+
+
+    def generate(self, gp, sfh_disk, sfh_bulge, return_ph=True):
+        l_main = self.dust_attenuation(gp, sfh_disk, sfh_bulge)
+        l_dust_slice, frac = self.dust_emission(gp, sfh_disk, sfh_bulge)
         l_dust = self.helper.set_item(torch.zeros_like(l_main), 'slice_lam_de', l_dust_slice)
-        l_norm = self.helper.get_recover(params, 'l_norm', torch)[:, None]
+        l_norm = self.helper.get_recover(gp, 'l_norm', torch)[:, None]
         l_tot = l_norm*(l_main + frac*l_dust)
         return torch.squeeze(self.detector(l_tot, return_ph))
 
@@ -119,7 +122,7 @@ class Adapter(nn.Module):
         self._set_free_shape(lib_ssp, sfr_bins, met_type)
 
 
-    def derive_free_params(self, params):
+    def derive_free_params(self, params, check_bounds=False):
         def simplex_transform(x):
             """Transform a hypercube into a simplex."""
             x = -torch.log(x)
@@ -127,10 +130,14 @@ class Adapter(nn.Module):
             return x
 
         params = torch.as_tensor(params, dtype=torch.float32, device=self.device)
+        if check_bounds:
+            is_out = torch.any(params <= self.lbounds, dim=1) \
+            | torch.any(params >= self.ubounds, dim=1)
+
         if self.bounds_transform:
             eps = 1e-6
             params = F.hardtanh(params, eps, 1 - eps)
-            params = (self.ubounds - self.lbounds)*params + self.lbounds
+            params = (self._ub - self._lb)*params + self._lb
 
         free_params = self.unflatten(params)
         if self.simplex_transform:
@@ -138,10 +145,15 @@ class Adapter(nn.Module):
                 free_params[1] = simplex_transform(free_params[1])
             if self.n_free_sfh == 2:
                 free_params[2] = simplex_transform(free_params[2])
+
         if self.transform is not None:
             free_params = self.transform(*free_params)
             assert(type(free_params) is tuple)
-        return free_params
+
+        if check_bounds:
+            return free_params, is_out
+        else:
+            return free_params
 
 
     def derive_model_params(self, free_params):
@@ -279,12 +291,15 @@ class Adapter(nn.Module):
         self.input_size = sum(free_shape)
         #
         if self.bounds_transform:
-            lbounds, ubounds = torch.tensor(bounds, dtype=torch.float32, device=self.device).T
-            self.register_buffer('lbounds', lbounds)
-            self.register_buffer('ubounds', ubounds)
+            lb, ub = torch.tensor(bounds, dtype=torch.float32, device=self.device).T
+            self.register_buffer('_lb', lb)
+            self.register_buffer('_ub', ub)
             self.bounds = [(0, 1)]*self.input_size
         else:
             self.bounds = bounds
+        lbounds, ubounds = torch.tensor(self.bounds, dtype=torch.float32, device=self.device).T
+        self.register_buffer('lbounds', lbounds)
+        self.register_buffer('ubounds', ubounds)
 
 
     def _set_log_met(self, lib_ssp):
