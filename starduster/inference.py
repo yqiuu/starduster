@@ -37,9 +37,15 @@ class Posterior(nn.Module):
         sed_model = self.sed_model
         free_params, is_out = sed_model.adapter.derive_free_params(params, check_bounds=True)
         model_params = sed_model.adapter.derive_model_params(free_params)
-        log_out = is_out*self.log_out
+
+        gp = model_params[0]
+        gp_curve_disk = sed_model.helper.get_item(gp, 'curve_disk_inds')
+        gp_curve_bulge = sed_model.helper.get_item(gp, 'curve_bulge_inds')
+        is_out_disk = sed_model.selector_disk.select(gp_curve_disk)
+        is_out_bulge = sed_model.selector_bulge.select(gp_curve_bulge)
+        log_out = self.log_out*(is_out | is_out_disk | is_out_bulge)
+
         y = sed_model.generate(*model_params)
-        #free_params = self.sed_model.adapter.preprocess(params)
         log_post = self._sign*(self.log_like(y) + log_out)
         if self._output_mode == 'numpy':
             return log_post.detach().cpu().numpy()

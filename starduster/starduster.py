@@ -1,4 +1,5 @@
 from .utils import *
+from .selector import Selector
 from .dust_attenuation import AttenuationCurve, DustAttenuation
 from .dust_emission import DustEmission
 
@@ -27,7 +28,10 @@ class MultiwavelengthSED(nn.Module):
     detector : module
         Detector.
     """
-    def __init__(self, helper, lib_ssp, dust_attenuation, dust_emission):
+    def __init__(self,
+        helper, lib_ssp, dust_attenuation, dust_emission,
+        selector_disk=None, selector_bulge=None,
+    ):
         super().__init__()
         self.helper = helper
         self.lib_ssp = lib_ssp
@@ -35,20 +39,27 @@ class MultiwavelengthSED(nn.Module):
         self.dust_emission = dust_emission
         self.adapter = Adapter(helper, lib_ssp)
         self.detector = Detector(lib_ssp.lam)
+        if selector_disk is not None:
+            self.selector_disk = selector_disk
+        if selector_bulge is not None:
+            self.selector_bulge = selector_bulge
         self.return_ph = True
 
 
     @classmethod
     def from_checkpoint(
-        cls, lib_ssp, fname_da_disk, fname_da_bulge, fname_de, map_location=None
+        cls, lib_ssp, fname_da_disk, fname_da_bulge, fname_de,
+        fname_selector_disk, fname_selector_bulge, map_location=None
     ):
         curve_disk, _ = load_model(fname_da_disk, AttenuationCurve, map_location=map_location)
         curve_bulge, _ = load_model(fname_da_bulge, AttenuationCurve, map_location=map_location)
+        selector_disk, _ = load_model(fname_selector_disk, Selector, map_location=map_location)
+        selector_bulge, _ = load_model(fname_selector_bulge, Selector, map_location=map_location)
         dust_emission = \
             DustEmission.from_checkpoint(fname_de, lib_ssp.L_ssp, map_location=map_location)
         helper = dust_emission.helper
         dust_attenuation = DustAttenuation(helper, curve_disk, curve_bulge, lib_ssp.l_ssp)
-        return cls(helper, lib_ssp, dust_attenuation, dust_emission)
+        return cls(helper, lib_ssp, dust_attenuation, dust_emission, selector_disk, selector_bulge)
 
 
     def forward(self, *args, return_ph=True):
