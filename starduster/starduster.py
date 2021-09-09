@@ -142,8 +142,9 @@ class Adapter(nn.Module):
 
         params = torch.as_tensor(params, dtype=torch.float32, device=self.device)
         if check_bounds:
-            is_out = torch.any(params <= self.lbounds, dim=1) \
-            | torch.any(params >= self.ubounds, dim=1)
+            dim = params.dim() - 1
+            is_out = torch.any(params <= self.lbounds, dim=dim) \
+            | torch.any(params >= self.ubounds, dim=dim)
 
         if self.bounds_transform:
             eps = 1e-6
