@@ -50,7 +50,7 @@ class MultiwavelengthSED(nn.Module):
         dust_attenuation = DustAttenuation(helper, curve_disk, curve_bulge, lib_ssp.l_ssp)
         return cls(helper, lib_ssp, dust_attenuation, dust_emission)
 
-        
+
     def forward(self, *args, return_ph=True):
         params, sfh_disk, sfh_bulge = self.adapter(*args)
         l_main = self.dust_attenuation(params, sfh_disk, sfh_bulge)
@@ -80,6 +80,16 @@ class MultiwavelengthSED(nn.Module):
 
     def configure_output_format(self, filters=None, z=0., distmod=0.):
         self.detector.configure(filters=filters, z=z, distmod=distmod)
+
+
+    @property
+    def input_size(self):
+        return self.adapter.input_size
+
+
+    @property
+    def bounds(self):
+        return self.adapter.bounds
 
 
 class Adapter(nn.Module):
