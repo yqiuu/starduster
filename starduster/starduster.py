@@ -92,8 +92,8 @@ class MultiwavelengthSED(nn.Module):
         )
 
 
-    def configure_output_mode(self, filters=None, z=0., distmod=0.):
-        self.detector.configure(filters=filters, z=z, distmod=distmod)
+    def configure_output_mode(self, filters=None, z=0., distmod=0., ab_mag=False):
+        self.detector.configure(filters=filters, z=z, distmod=distmod, ab_mag=ab_mag)
 
 
     @property
@@ -345,15 +345,17 @@ class Detector(nn.Module):
             Generalized flux density (nu*f_nu).
         """
         if return_ph:
-            fluxes = torch.trapz(l_target[:, None, :]*self.trans_filter, self.lam)
-            return -2.5*torch.log10(fluxes) + self.distmod
+            fluxes = torch.trapz(l_target[:, None, :]*self.trans_filter, self.lam)*self.dist_factor
+            if self.ab_mag:
+                return -2.5*torch.log10(fluxes) + 8.9
+            else:
+                return fluxes
         else:
-            return l_target*self.lam*(self.unit_f_nu*10**(-.4*self.distmod))
+            return l_target*self.lam*(self.unit_f_nu*self.dist_factor)
 
 
-    def configure(self, filters=None, z=0., distmod=0.):
+    def configure(self, filters=None, z=0., distmod=0., ab_mag=True):
         lam = self.lam_base*(1 + z)
-        self.distmod = distmod
         self.register_buffer('lam', lam)
         if filters is not None:
             trans_filter = np.zeros([len(filters), len(lam)])
@@ -363,13 +365,15 @@ class Detector(nn.Module):
                 lam_pivot[i_f] = self._set_lam_pivot(ftr)
             self.register_buffer('trans_filter', torch.tensor(trans_filter, dtype=torch.float32))
             self.register_buffer('lam_pivot', torch.tensor(lam_pivot, dtype=torch.float32))
+        self.dist_factor = 10**(-.4*distmod)
+        self.ab_mag = ab_mag
 
 
     def _set_transmission(self, ftr, lam):
         """The given flux should be in L_sol."""
         unit_lam = U.angstrom.to(U.micrometer)
         trans = np.interp(lam, ftr.wavelength*unit_lam, ftr.transmission, left=0., right=0.)
-        trans = trans/np.trapz(trans/lam, lam)*self.unit_ab
+        trans = trans/np.trapz(trans/lam, lam)*self.unit_jansky
         return trans
 
 
@@ -380,7 +384,7 @@ class Detector(nn.Module):
     def _set_unit(self):
         unit_f_nu = U.solLum/(4*np.pi*(10*U.parsec)**2)*U.micrometer/constants.c
         self.unit_f_nu = unit_f_nu.to(U.jansky).value
-        self.unit_ab = self.unit_f_nu/3631
+        self.unit_jansky = self.unit_f_nu
 
 
 class SSPLibrary(nn.Module):
