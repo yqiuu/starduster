@@ -6,11 +6,9 @@ from torch.nn import functional as F
 
 
 class AttenuationFractionSub(nn.Module):
-    def __init__(self, input_size, hidden_sizes, activations, dropout=0.):
+    def __init__(self, input_size, hidden_sizes, activations):
         super().__init__()
         self.mlp = create_mlp(input_size, hidden_sizes, activations)
-        if dropout > 0:
-            self.mlp.add_module('dropout', nn.Dropout(dropout))
 
 
     def forward(self, p_frac, block):
@@ -40,11 +38,8 @@ class DustEmission(nn.Module):
 
 
     @classmethod
-    def from_checkpoint(cls, fname, L_ssp=None, no_dropout=True, map_location=None):
+    def from_checkpoint(cls, fname, L_ssp=None, map_location=None):
         checkpoint = torch.load(fname, map_location=map_location)
-        if no_dropout:
-            checkpoint['params'][2]['dropout'] = 0.
-            checkpoint['params'][3]['dropout'] = 0.
         model = cls.from_args(*checkpoint['params'], L_ssp=L_ssp)
         model.load_state_dict(checkpoint['model_state_dict'])
         return model
