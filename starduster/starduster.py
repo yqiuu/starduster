@@ -160,8 +160,9 @@ class Adapter(nn.Module):
 
         if self.bounds_transform:
             eps = 1e-6
-            params = .5*(F.hardtanh(params, -1 + eps, 1 - eps) + 1)
-            params = (self._ub - self._lb)*params + self._lb
+            params = (params - self._bound_centre)/self._bound_radius
+            params = F.hardtanh(params, -1 + eps, 1 - eps)
+            params = self._bound_radius*params + self._bound_centre
 
         free_params = self.unflatten(params)
         if self.simplex_transform:
@@ -314,16 +315,12 @@ class Adapter(nn.Module):
         self.free_shape = free_shape
         self.input_size = sum(free_shape)
         #
-        if self.bounds_transform:
-            lb, ub = torch.tensor(bounds, dtype=torch.float32, device=self.device).T
-            self.register_buffer('_lb', lb)
-            self.register_buffer('_ub', ub)
-            self.bounds = [(-1, 1)]*self.input_size
-        else:
-            self.bounds = bounds
-        lbounds, ubounds = torch.tensor(self.bounds, dtype=torch.float32, device=self.device).T
+        lbounds, ubounds = torch.tensor(bounds, dtype=torch.float32, device=self.device).T
         self.register_buffer('lbounds', lbounds)
         self.register_buffer('ubounds', ubounds)
+        self.register_buffer('bound_radius', .5*(ubounds - lbounds))
+        self.register_buffer('bound_centre', .5*(ubounds + lbounds))
+        self.bounds = bounds
 
 
     def _set_log_met(self, lib_ssp):
