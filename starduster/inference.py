@@ -8,13 +8,16 @@ from tqdm import tqdm
 class GaussianLikelihood(nn.Module):
     def __init__(self, y_obs, y_err):
         super().__init__()
-        self.multi_normal = torch.distributions.MultivariateNormal(y_obs, torch.diag(y_err*y_err))
+        self.register_buffer('y_obs', y_obs)
+        self.register_buffer('y_err', y_err)
+        self.norm = torch.sum(-torch.log(np.sqrt(2*np.pi)*y_err))
 
         
     def forward(self, y):
-        return self.multi_normal.log_prob(y)
-    
-    
+        delta = (y - self.y_obs)/self.y_err
+        return torch.sum(-.5*delta*delta, dim=-1) + self.norm
+
+
 class Posterior(nn.Module):
     def __init__(self, sed_model, log_like, log_prior=None):
         super().__init__()
