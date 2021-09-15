@@ -71,7 +71,7 @@ class OptimizerWrapper(nn.Module):
     def __init__(self, log_post, x0=None):
         super().__init__()
         if x0 is None:
-            self.params = nn.Parameter(torch.full((1, log_post.sed_model.adapter.input_size), .5))
+            self.params = nn.Parameter(torch.full((1, log_post.sed_model.adapter.input_size), 0.))
         else:
             self.params = nn.Parameter(x0)
         # Save log_post as a tuple to prevent addtional parameters

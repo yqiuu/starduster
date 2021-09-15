@@ -160,7 +160,7 @@ class Adapter(nn.Module):
 
         if self.bounds_transform:
             eps = 1e-6
-            params = F.hardtanh(params, eps, 1 - eps)
+            params = .5*(F.hardtanh(params, -1 + eps, 1 - eps) + 1)
             params = (self._ub - self._lb)*params + self._lb
 
         free_params = self.unflatten(params)
