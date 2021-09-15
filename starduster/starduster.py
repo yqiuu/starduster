@@ -306,7 +306,7 @@ class Adapter(nn.Module):
             lb, ub = torch.tensor(bounds, dtype=torch.float32, device=self.device).T
             self.register_buffer('_lb', lb)
             self.register_buffer('_ub', ub)
-            self.bounds = [(0, 1)]*self.input_size
+            self.bounds = [(-1, 1)]*self.input_size
         else:
             self.bounds = bounds
         lbounds, ubounds = torch.tensor(self.bounds, dtype=torch.float32, device=self.device).T
