@@ -106,6 +106,18 @@ class MultiwavelengthSED(nn.Module):
         return self.adapter.bounds
 
 
+    @property
+    def lam_pivot(self):
+        """Pivot wavelength of the filters. [micrometer]"""
+        return self.detector.lam_pivot
+
+
+    @property
+    def lam(self):
+        """Wavelength of the output SED. [micrometer]"""
+        return self.detector.lam
+
+
 class Adapter(nn.Module):
     """Apply different parametrisation to input parameters"""
     def __init__(self, helper, lib_ssp):
@@ -326,7 +338,7 @@ class Detector(nn.Module):
     ----------
     filters : array
         An array of pyphot filter instances.
-    lam : tensor [micormeter]
+    lam : tensor [micrometer]
         Wavelength of the input fluxes.
     """
     def __init__(self, lam):
