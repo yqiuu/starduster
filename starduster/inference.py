@@ -71,7 +71,7 @@ class OptimizerWrapper(nn.Module):
     def __init__(self, log_post, x0=None):
         super().__init__()
         if x0 is None:
-            adpter = log_post.sed_model.adapter
+            adapter = log_post.sed_model.adapter
             bound_centre = adapter.bound_centre
             bound_radius = adapter.bound_radius
             self.params = nn.Parameter(

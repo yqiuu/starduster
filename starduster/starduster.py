@@ -160,9 +160,9 @@ class Adapter(nn.Module):
 
         if self.bounds_transform:
             eps = 1e-6
-            params = (params - self._bound_centre)/self._bound_radius
+            params = (params - self.bound_centre)/self.bound_radius
             params = F.hardtanh(params, -1 + eps, 1 - eps)
-            params = self._bound_radius*params + self._bound_centre
+            params = self.bound_radius*params + self.bound_centre
 
         free_params = self.unflatten(params)
         if self.simplex_transform:
