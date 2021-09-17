@@ -1,4 +1,5 @@
 from .utils import *
+from .parameter import *
 from .selector import Selector
 from .dust_attenuation import AttenuationCurve, DustAttenuation
 from .dust_emission import DustEmission
@@ -75,19 +76,10 @@ class MultiwavelengthSED(nn.Module):
         return torch.squeeze(self.detector(l_tot, return_ph))
 
 
-    def configure_input_mode(self,
-        sfr_bins=None, met_type='discrete', bounds_transform=True,
-        simplex_transform=True, transform=None, fixed_params=None, device='cpu',
-    ):
+    def configure_input_mode(self, gp=None, sfh_disk=None, sfh_bulge=None, device='cpu'):
         self.adapter.configure(
-            helper=self.helper,
-            lib_ssp=self.lib_ssp,
-            sfr_bins=sfr_bins,
-            met_type=met_type,
-            bounds_transform=bounds_transform,
-            simplex_transform=simplex_transform,
-            transform=transform,
-            fixed_params=fixed_params,
+            helper=self.helper, lib_ssp=self.lib_ssp,
+            gp=gp, sfh_disk=sfh_disk, sfh_bulge=sfh_bulge,
             device=device,
         )
 
@@ -122,37 +114,53 @@ class Adapter(nn.Module):
     """Apply different parametrisation to input parameters"""
     def __init__(self, helper, lib_ssp):
         super().__init__()
-        self.n_gp = len(helper.header)
-        self._set_log_met(lib_ssp)
         self.configure(helper, lib_ssp)
 
 
     def forward(self, params):
-        free_params = self.derive_free_params(params)
-        model_params = self.derive_model_params(free_params)
-        return model_params
+        params = torch.as_tensor(params, dtype=torch.float32, device=self.device)
+        gp, sfh_disk, sfh_bulge = self.unflatten(params)
+        return self.pset_gp(gp), self.pset_sfh_disk(sfh_disk), self.pset_sfh_bulge(sfh_bulge)
 
 
     def configure(self,
-        helper, lib_ssp, sfr_bins=None, met_type='discrete', bounds_transform=True,
-        simplex_transform=True, transform=None, fixed_params=None, device='cpu'
+        helper, lib_ssp, gp=None, sfh_disk=None, sfh_bulge=None, device='cpu'
     ):
+        if gp is None:
+            gp = GalaxyParameter()
+        if sfh_disk is None:
+            sfh_disk = DiscreteSFH()
+        if sfh_bulge is None:
+            sfh_bulge = DiscreteSFH()
+        self.pset_gp = gp.init(helper)
+        self.pset_sfh_disk = sfh_disk.init(lib_ssp)
+        self.pset_sfh_bulge = sfh_bulge.init(lib_ssp)
         self.device = device
-        self.bounds_transform = bounds_transform
-        self.simplex_transform = simplex_transform
-        self.transform = transform
-        self._set_fixed_params(helper, fixed_params)
-        self._set_free_shape(lib_ssp, sfr_bins, met_type)
+        self.free_shape = (
+            self.pset_gp.input_size, self.pset_sfh_disk.input_size, self.pset_sfh_bulge.input_size
+        )
+        self.input_size = sum(self.free_shape)
 
 
+    def unflatten(self, params):
+        params = torch.atleast_2d(params)
+        params_out = [None]*len(self.free_shape)
+        idx_b = 0
+        for i_input, size in enumerate(self.free_shape):
+            idx_e = idx_b + size
+            params_out[i_input] = params[:, idx_b:idx_e]
+            idx_b = idx_e
+        return params_out
+
+
+"""
     def derive_free_params(self, params, check_bounds=False):
         def simplex_transform(x):
-            """Transform a hypercube into a simplex."""
+            """"Transform a hypercube into a simplex.""""
             x = -torch.log(x)
             x = x/x.sum(dim=-1)[:, None]
             return x
 
-        params = torch.as_tensor(params, dtype=torch.float32, device=self.device)
         if check_bounds:
             dim = params.dim() - 1
             is_out = torch.any(params <= self.lbounds, dim=dim) \
@@ -204,18 +212,6 @@ class Adapter(nn.Module):
             sfh_bulge = self.derive_sfh(*free_params[2::2])
         #
         return gp, sfh_disk, sfh_bulge
-
-
-    def unflatten(self, x_in):
-        free_shape = self.free_shape
-        x_in = torch.atleast_2d(x_in)
-        x_out = [None]*len(free_shape)
-        idx_b = 0
-        for i_input, size in enumerate(free_shape):
-            idx_e = idx_b + size
-            x_out[i_input] = x_in[:, idx_b:idx_e]
-            idx_b = idx_e
-        return x_out
 
     
     def derive_sfh(self, sfr, log_met=None):
@@ -326,6 +322,7 @@ class Adapter(nn.Module):
     def _set_log_met(self, lib_ssp):
         met_sol = 0.019
         self.register_buffer('log_met', torch.log10(lib_ssp.met/met_sol)[:, None])
+"""
 
 
 class Detector(nn.Module):
@@ -405,7 +402,7 @@ class SSPLibrary(nn.Module):
         self.sfh_shape = l_ssp_raw.shape[1:] # (lam, met, age)
         self.n_met = len(lib_ssp['met'])
         self.n_tau = len(lib_ssp['tau'])
-        self.n_ssp = len(lib_ssp['met']*lib_ssp['tau'])
+        self.n_ssp = self.n_met*self.n_tau 
         self.dim_age = 2
         self.dim_met = 1
         l_ssp_raw.resize(l_ssp_raw.shape[0], l_ssp_raw.shape[1]*l_ssp_raw.shape[2])
