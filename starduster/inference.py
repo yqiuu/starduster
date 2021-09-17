@@ -41,8 +41,8 @@ class Posterior(nn.Module):
         gp = model_params[0]
         gp_curve_disk = sed_model.helper.get_item(gp, 'curve_disk_inds')
         gp_curve_bulge = sed_model.helper.get_item(gp, 'curve_bulge_inds')
-        is_out_disk = sed_model.selector_disk.select(gp_curve_disk)
-        is_out_bulge = sed_model.selector_bulge.select(gp_curve_bulge)
+        is_out_disk = ~sed_model.selector_disk.select(gp_curve_disk)
+        is_out_bulge = ~sed_model.selector_bulge.select(gp_curve_bulge)
         log_out = self.log_out*(is_out | is_out_disk | is_out_bulge)
 
         y = sed_model.generate(*model_params)
