@@ -136,10 +136,17 @@ class Adapter(nn.Module):
         self.pset_sfh_disk = sfh_disk.init(lib_ssp)
         self.pset_sfh_bulge = sfh_bulge.init(lib_ssp)
         self.device = device
-        self.free_shape = (
-            self.pset_gp.input_size, self.pset_sfh_disk.input_size, self.pset_sfh_bulge.input_size
-        )
+        #
+        pset_names = ['pset_gp', 'pset_sfh_disk', 'pset_sfh_bulge']
+        free_shape = []
+        bounds = []
+        for name in pset_names:
+            pset = getattr(self, name)
+            free_shape.append(pset.input_size)
+            bounds.append(pset.bounds)
+        self.free_shape = free_shape
         self.input_size = sum(self.free_shape)
+        self.bounds = np.vstack(bounds)
 
 
     def unflatten(self, params):

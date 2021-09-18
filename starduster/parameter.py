@@ -1,9 +1,10 @@
+import numpy as np
 import torch
 from torch import nn
 
 
 class ParameterSet(nn.Module):
-    def __init__(self, params_default, free_inds):
+    def __init__(self, bounds, params_default, free_inds):
         super().__init__()
         self.register_buffer('params_default', params_default)
         self.free_inds = free_inds
@@ -11,6 +12,10 @@ class ParameterSet(nn.Module):
             self.input_size = free_inds.stop - free_inds.start
         else:
             self.input_size = len(free_inds)
+        if self.input_size == 0:
+            self.bounds = np.empty((0, 2), dtype=np.float)
+        else:
+            self.bounds = np.asarray(bounds)[self.free_inds]
 
 
     def forward(self, params):
@@ -36,6 +41,7 @@ class GalaxyParameter:
 
 
     def init(self, helper):
+        bounds = [(-1., 1.)]*len(helper.header)
         params_default = torch.zeros(len(helper.header))
         free_inds = []
         for i_k, key in enumerate(helper.header):
@@ -43,7 +49,7 @@ class GalaxyParameter:
                 params_default[i_k] = self.fixed_gp[key]
             else:
                 free_inds.append(i_k)
-        return ParameterSet(params_default, free_inds)
+        return ParameterSet(bounds, params_default, free_inds)
 
 
 class DiscreteSFH:
@@ -52,6 +58,7 @@ class DiscreteSFH:
 
 
     def init(self, lib_ssp):
+        bounds = [(0., 1.)]*lib_ssp.n_ssp
         if self.fixed_sfh is None:
             params_default = torch.zeros(lib_ssp.n_ssp, dtype=torch.float32)
             free_inds = slice(0, lib_ssp.n_ssp)
@@ -59,5 +66,5 @@ class DiscreteSFH:
             assert self.fixed_sfh.sum() == 1., "Star foramtion history should be normalised to one."
             params_default = torch.ravel(self.fixed_sfh)
             free_inds = ()
-        return ParameterSet(params_default, free_inds)
+        return ParameterSet(bounds, params_default, free_inds)
 
