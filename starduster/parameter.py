@@ -64,7 +64,8 @@ class DiscreteSFH:
             params_default = torch.zeros(lib_ssp.n_ssp, dtype=torch.float32)
             free_inds = slice(0, lib_ssp.n_ssp)
         else:
-            params_default = torch.ravel(fixed_sfh)
+            assert self.fixed_sfh.sum() == 1., "Star foramtion history should be normalised to one."
+            params_default = torch.ravel(self.fixed_sfh)
             free_inds = ()
         return ParameterSet(params_default, free_inds)
 
