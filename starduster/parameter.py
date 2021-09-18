@@ -8,9 +8,9 @@ class ParameterSet(nn.Module):
         self.register_buffer('params_default', params_default)
         self.free_inds = free_inds
         if type(free_inds) is slice:
-            self.all_fixed = False
+            self.input_size = free_inds.stop - free_inds.start
         else:
-            self.all_fixed = len(free_inds) == 0
+            self.input_size = len(free_inds)
 
 
     def forward(self, params):
@@ -18,21 +18,13 @@ class ParameterSet(nn.Module):
 
 
     def set_fixed_params(self, params):
-        if self.all_fixed:
-            return self.params_default.title((params, 1))
-        else:
-            params_out = self.params_default.tile((params.size(0), 1))
-            params_out[:, self.free_inds] = params
-            return params_out
+        params_out = self.params_default.tile((params.size(0), 1))
+        params_out[:, self.free_inds] = params
+        return params_out
 
 
     def derive_full_params(self, params):
         return params
-
-
-    @property
-    def input_size(self):
-        return self.params_default.size(0)
 
 
 class GalaxyParameter:
