@@ -32,6 +32,25 @@ class ParameterSet(nn.Module):
         return params
 
 
+class InverseDistanceWeightedSFH(ParameterSet):
+    def __init__(self, lib_ssp):
+        bounds = [(0, 1)]*4
+        super().__init__(bounds, torch.zeros(4), slice(0, 4))
+        met_sol = 0.019
+        self.register_buffer('log_met', torch.log10(lib_ssp.met/met_sol)[:, None])
+        self.register_buffer('log_tau', torch.log10(lib_ssp.tau)[:, None])
+
+
+    def derive_full_params(self, params):
+        eps = 1e-6
+        log_met, s_met, log_tau, s_tau = params.T
+        inv = 1./(torch.abs(log_met - self.log_met)**s_met + eps)
+        w_met = (inv/inv.sum(dim=0)).T
+        inv = 1./(torch.abs(log_tau - self.log_tau)**s_tau + eps)
+        w_tau = (inv/inv.sum(dim=0)).T
+        return w_met[:, :, None]*w_tau[:, None, :]
+
+
 class GalaxyParameter:
     def __init__(self, fixed_gp=None):
         if fixed_gp is None:
