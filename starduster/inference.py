@@ -36,7 +36,7 @@ class Posterior(nn.Module):
 
         sed_model = self.sed_model
         gp, sfh_disk, sfh_bulge, is_out = sed_model.adapter.derive_free_params(params)
-        model_params = sed_model.adapter.derive_model_params(gp, sfh_bulge, sfh_bulge)
+        model_params = sed_model.adapter.derive_model_params(gp, sfh_disk, sfh_bulge)
 
         gp = model_params[0]
         gp_curve_disk = sed_model.helper.get_item(gp, 'curve_disk_inds')
