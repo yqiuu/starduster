@@ -119,8 +119,8 @@ class Adapter(nn.Module):
 
     def forward(self, params):
         params = torch.as_tensor(params, dtype=torch.float32, device=self.device)
-        gp, sfh_disk, sfh_bulge = self.unflatten(params)
-        return self.pset_gp(gp), self.pset_sfh_disk(sfh_disk), self.pset_sfh_bulge(sfh_bulge)
+        gp, sfh_disk, sfh_bulge, is_out = self.derive_free_params(params)
+        return self.derive_model_params(gp, sfh_disk, sfh_bulge)
 
 
     def configure(self,
@@ -146,7 +146,15 @@ class Adapter(nn.Module):
             bounds.append(pset.bounds)
         self.free_shape = free_shape
         self.input_size = sum(self.free_shape)
-        self.bounds = np.vstack(bounds)
+        #
+        bounds = np.vstack(bounds)
+        lbounds, ubounds = torch.tensor(bounds, dtype=torch.float32, device=self.device).T
+        self.register_buffer('lbounds', lbounds)
+        self.register_buffer('ubounds', ubounds)
+        self.register_buffer('bound_radius', .5*(ubounds - lbounds))
+        self.register_buffer('bound_centre', .5*(ubounds + lbounds))
+        self.bounds = bounds
+        self.bounds_transform = True
 
 
     def unflatten(self, params):
@@ -159,6 +167,24 @@ class Adapter(nn.Module):
             idx_b = idx_e
         return params_out
 
+
+    def derive_free_params(self, params):
+        dim = params.dim() - 1
+        is_out = torch.any(params <= self.lbounds, dim=dim) \
+            | torch.any(params >= self.ubounds, dim=dim)
+
+        if self.bounds_transform:
+            eps = 1e-6
+            params = (params - self.bound_centre)/self.bound_radius
+            params = F.hardtanh(params, -1 + eps, 1 - eps)
+            params = self.bound_radius*params + self.bound_centre
+
+        gp, sfh_disk, sfh_bulge = self.unflatten(params)
+        return gp, sfh_disk, sfh_bulge, is_out
+
+
+    def derive_model_params(self, gp, sfh_disk, sfh_bulge):
+        return self.pset_gp(gp), self.pset_sfh_disk(sfh_disk), self.pset_sfh_bulge(sfh_bulge)
 
 """
     def derive_free_params(self, params, check_bounds=False):

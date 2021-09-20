@@ -35,8 +35,8 @@ class Posterior(nn.Module):
             params = torch.tensor(params, dtype=torch.float32, requires_grad=True)
 
         sed_model = self.sed_model
-        free_params, is_out = sed_model.adapter.derive_free_params(params, check_bounds=True)
-        model_params = sed_model.adapter.derive_model_params(free_params)
+        gp, sfh_disk, sfh_bulge, is_out = sed_model.adapter.derive_free_params(params)
+        model_params = sed_model.adapter.derive_model_params(gp, sfh_bulge, sfh_bulge)
 
         gp = model_params[0]
         gp_curve_disk = sed_model.helper.get_item(gp, 'curve_disk_inds')
