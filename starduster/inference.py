@@ -6,13 +6,16 @@ from tqdm import tqdm
 
 
 class GaussianLikelihood(nn.Module):
-    def __init__(self, y_obs, y_err):
+    def __init__(self, y_obs, y_err, norm=True):
         super().__init__()
         self.register_buffer('y_obs', y_obs)
         self.register_buffer('y_err', y_err)
-        self.norm = torch.sum(-torch.log(np.sqrt(2*np.pi)*y_err))
+        if norm:
+            self.norm = torch.sum(-torch.log(np.sqrt(2*np.pi)*y_err))
+        else:
+            self.norm = 0.
 
-        
+
     def forward(self, y):
         delta = (y - self.y_obs)/self.y_err
         return torch.sum(-.5*delta*delta, dim=-1) + self.norm
