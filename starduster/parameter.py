@@ -71,6 +71,49 @@ class DiscreteSFH(ParameterSet):
 
 
 @partial_init
+class DiscreteSFR_InterpolatedMet(ParameterSet):
+    # TODO: Add functions to make sure that the SFH is normalised to one.
+    # Handle the situation where there are only two SFR bins.
+    def __init__(self, lib_ssp, sfr_bins=None, fixed_sfh=None):
+        self.n_tau_ssp = lib_ssp.n_tau
+        if sfr_bins is None:
+            n_sfr = lib_ssp.n_tau
+        else:
+            n_sfr = len(sfr_bins)
+        self.sfr_bins = sfr_bins
+
+        met_sol = 0.019
+        log_met = torch.log10(lib_ssp.met/met_sol)[:, None]
+        bounds = np.vstack([[(0., 1.)]*n_sfr, [(float(log_met[0]), float(log_met[-1]))]*n_sfr])
+        param_names = [f'sfr_{i_sfr}' for i_sfr in range(n_sfr)] \
+            + [f'log_met_{i_sfr}' for i_sfr in range(n_sfr)]
+        params_default, free_inds = derive_default_params(param_names, fixed_sfh)
+        super().__init__(bounds, params_default, free_inds)
+        self.register_buffer('log_met', log_met)
+        self.n_sfr = n_sfr
+
+
+    def derive_full_params(self, params):
+        sfr = params[:, :self.n_sfr]
+        log_met = params[:, self.n_sfr:]
+        sfh = sfr[:, None, :]*self.derive_idw_met(log_met)
+        if self.n_sfr != self.n_tau_ssp:
+            sfh_full = torch.zeros([sfh.size(0), sfh.size(1), self.n_tau_ssp],
+                dtype=sfh.dtype, layout=sfh.layout, device=sfh.device)
+            for i_b, (idx_b, idx_e) in enumerate(self.sfr_bins):
+                sfh_full[:, :, idx_b:idx_e] = sfh[:, :, i_b, None]/(idx_e - idx_b)
+            sfh = sfh_full
+        sfh = torch.flatten(sfh, start_dim=1)
+        return sfh
+
+
+    def derive_idw_met(self, log_met):
+        eps = 1e-6
+        inv = 1./((log_met[:, None, :] - self.log_met)**2 + eps)
+        return inv/inv.sum(dim=1)[:, None, :]
+
+
+@partial_init
 class InverseDistanceWeightedSFH(ParameterSet):
     def __init__(self, lib_ssp, fixed_sfh=None):
         met_sol = 0.019
@@ -95,6 +138,7 @@ class InverseDistanceWeightedSFH(ParameterSet):
         inv = 1./(torch.abs(log_tau - self.log_tau)**(10**s_tau) + eps)
         w_tau = (inv/inv.sum(dim=0)).T
         return torch.flatten(w_met[:, :, None]*w_tau[:, None, :], start_dim=1)
+
 
 
 def derive_default_params(param_names, fixed_params):
