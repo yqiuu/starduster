@@ -50,9 +50,9 @@ class ParameterSet(nn.Module):
 
 @partial_init
 class GalaxyParameter(ParameterSet):
-    def __init__(self, helper, fixed_gp=None):
+    def __init__(self, helper, **fixed_params):
         bounds = [(-1., 1.)]*len(helper.header)
-        params_default, free_inds = derive_default_params(helper.header.keys(), fixed_gp)
+        params_default, free_inds = derive_default_params(helper.header.keys(), fixed_params)
         super().__init__(bounds, params_default, free_inds)
 
 
@@ -74,7 +74,7 @@ class DiscreteSFH(ParameterSet):
 class DiscreteSFR_InterpolatedMet(ParameterSet):
     # TODO: Add functions to make sure that the SFH is normalised to one.
     # Handle the situation where there are only two SFR bins.
-    def __init__(self, lib_ssp, sfr_bins=None, fixed_sfh=None):
+    def __init__(self, lib_ssp, sfr_bins=None, **fixed_params):
         self.n_tau_ssp = lib_ssp.n_tau
         if sfr_bins is None:
             n_sfr = lib_ssp.n_tau
@@ -87,7 +87,7 @@ class DiscreteSFR_InterpolatedMet(ParameterSet):
         bounds = np.vstack([[(0., 1.)]*n_sfr, [(float(log_met[0]), float(log_met[-1]))]*n_sfr])
         param_names = [f'sfr_{i_sfr}' for i_sfr in range(n_sfr)] \
             + [f'log_met_{i_sfr}' for i_sfr in range(n_sfr)]
-        params_default, free_inds = derive_default_params(param_names, fixed_sfh)
+        params_default, free_inds = derive_default_params(param_names, fixed_params)
         super().__init__(bounds, params_default, free_inds)
         self.register_buffer('log_met', log_met)
         self.n_sfr = n_sfr
@@ -115,7 +115,7 @@ class DiscreteSFR_InterpolatedMet(ParameterSet):
 
 @partial_init
 class InverseDistanceWeightedSFH(ParameterSet):
-    def __init__(self, lib_ssp, fixed_sfh=None):
+    def __init__(self, lib_ssp, **fixed_params):
         met_sol = 0.019
         log_met = torch.log10(lib_ssp.met/met_sol)[:, None]
         log_tau = torch.log10(lib_ssp.tau)[:, None]
@@ -124,7 +124,7 @@ class InverseDistanceWeightedSFH(ParameterSet):
             (float(log_tau[0]), float(log_tau[-1])), (-2., 1.)
         ])
         param_names = ['log_met', 's_met', 'log_tau', 's_tau']
-        params_default, free_inds = derive_default_params(param_names, fixed_sfh)
+        params_default, free_inds = derive_default_params(param_names, fixed_params)
         super().__init__(bounds, params_default, free_inds)
         self.register_buffer('log_met', log_met)
         self.register_buffer('log_tau', log_tau)
@@ -142,8 +142,6 @@ class InverseDistanceWeightedSFH(ParameterSet):
 
 
 def derive_default_params(param_names, fixed_params):
-    if fixed_params is None:
-        fixed_params = {}
     params_default = torch.zeros(len(param_names))
     free_inds = []
     for i_k, key in enumerate(param_names):
