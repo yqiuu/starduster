@@ -15,19 +15,36 @@ from torch.nn import functional as F
 
 
 class MultiwavelengthSED(nn.Module):
-    """Primary module to compute multiwavelength SEDs
+    """Primary module to compute multiwavelength SEDs.
 
     Parameters
     ----------
-    helper
+    helper : Helper
+        Helper of input parameters.
     dust_attenuation : module
         Dust attenuation module.
     dust_emission : module
         Dust emission module.
-    lam : tensor [AA]
-        Wavelength of the resulting SEDs.
-    detector : module
-        Detector.
+    selector_disk : Selector
+        Selector of the disk component.
+    selector_bulge : Selector
+        Selector of the bulge component.
+
+    Inputs
+    ------
+    gp : tensor
+        Galaxy parameters.
+    sfh_disk : tensor
+        Star formation history of the disk component.
+    sfh_bulge : tensor
+        Star forward history of the bulge component.
+    return_ph : bool
+        If True, apply filters to outputs.
+
+    Outputs
+    -------
+        If return_ph is true, return filter fluxes. If return_ph is false,
+        return full spectra.
     """
     def __init__(self,
         helper, lib_ssp, dust_attenuation, dust_emission,
@@ -52,6 +69,25 @@ class MultiwavelengthSED(nn.Module):
         cls, lib_ssp, fname_da_disk, fname_da_bulge, fname_de,
         fname_selector_disk, fname_selector_bulge, map_location=None
     ):
+        """Initialise an instance from a checkpoint.
+
+        Parameters
+        ----------
+        lib_ssp : SSPLibrary
+            A simple stellar population library.
+        fname_da_disk : str
+            File name of the disk attenuation curve module.
+        fname_da_bulge : str
+            File name of the bulge attenuation curve module.
+        fname_de : str
+            File name of the dust emission module.
+        fname_selector_disk : str
+            File name of the selector corresponding to the disk component.
+        fname_selector_bulge : str
+            File name of the selector corresponding to the bugle component.
+        map_location
+            A variable that is passed to torch.load.
+        """
         curve_disk, _ = load_model(fname_da_disk, AttenuationCurve, map_location=map_location)
         curve_bulge, _ = load_model(fname_da_bulge, AttenuationCurve, map_location=map_location)
         selector_disk, _ = load_model(fname_selector_disk, Selector, map_location=map_location)
@@ -77,6 +113,19 @@ class MultiwavelengthSED(nn.Module):
 
 
     def configure_input_mode(self, gp=None, sfh_disk=None, sfh_bulge=None, device='cpu'):
+        """Configure the input mode.
+
+        Parameters
+        ----------
+        gp : ParameterSet
+            Parametrisation of the galaxy parameters.
+        sfh_disk : ParameterSet
+            Parametrisation of the disk component star formation history.
+        sfh_bulge : ParameterSet
+            Parametrisation of the bulge component star formation history.
+        device : torch.device
+            Device of the module.
+        """
         self.adapter.configure(
             helper=self.helper, lib_ssp=self.lib_ssp,
             gp=gp, sfh_disk=sfh_disk, sfh_bulge=sfh_bulge,
@@ -85,16 +134,31 @@ class MultiwavelengthSED(nn.Module):
 
 
     def configure_output_mode(self, filters=None, z=0., distmod=0., ab_mag=False):
+        """Configure the output mode.
+
+        Parameters
+        ----------
+        filters : sedpy.observate.Filter
+            Output filters.
+        z : float
+            Redshift.
+        distmod : float
+            Distance modulus.
+        ab_mag : bool
+            If True, return AB magnitudes. If False, return flux densities.
+        """
         self.detector.configure(filters=filters, z=z, distmod=distmod, ab_mag=ab_mag)
 
 
     @property
     def input_size(self):
+        """Number of input parameters."""
         return self.adapter.input_size
 
 
     @property
     def bounds(self):
+        """Bounds of input parameters."""
         return self.adapter.bounds
 
 
@@ -106,7 +170,7 @@ class MultiwavelengthSED(nn.Module):
 
     @property
     def lam(self):
-        """Wavelength of the output SED. [micrometer]"""
+        """Wavelength of the SED. [micrometer]"""
         return self.detector.lam
 
 
