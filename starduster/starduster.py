@@ -150,6 +150,23 @@ class MultiwavelengthSED(nn.Module):
         self.detector.configure(filters=filters, z=z, distmod=distmod, ab_mag=ab_mag)
 
 
+    def compute_m_star(self, gp_0, sfh_disk, sfh_bulge, separate=False):
+        l_norm = self.helper.get_item(gp_0, 'l_norm')
+        b_to_t = self.helper.get_item(gp_0, 'b_to_t')
+
+        m_star_disk = self.compute_mass_distribution(sfh_disk, l_norm*(1 - b_to_t)).sum(dim=(1, 2))
+        m_star_bulge = self.compute_mass_distribution(sfh_disk, l_norm*b_to_t).sum(dim=(1, 2))
+
+        if separate:
+            return m_star_disk, m_star_bulge
+        else:
+            return m_star_disk + m_star_bulge
+
+
+    def compute_mass_distribution(self, sfh, l_norm):
+        return self.lib_ssp.reshape_sfh(sfh)/self.lib_ssp.norm*l_norm
+
+
     @property
     def input_size(self):
         """Number of input parameters."""
