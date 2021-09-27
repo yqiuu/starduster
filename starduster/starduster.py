@@ -150,6 +150,14 @@ class MultiwavelengthSED(nn.Module):
         self.detector.configure(filters=filters, z=z, distmod=distmod, ab_mag=ab_mag)
 
 
+    def compute_m_dust(self, gp_0):
+        r_disk = self.helper.get_item(gp_0, 'r_disk')
+        r_dust_to_rd = self.helper.get_item(gp_0, 'r_dust_to_rd')
+        r_dust = r_disk*r_dust_to_rd
+        den_dust = self.helper.get_item(gp_0, 'den_dust')
+        return den_dust*(2*np.pi*r_dust*r_dust)
+
+
     def compute_m_star(self, gp_0, sfh_disk, sfh_bulge, separate=False):
         l_norm = self.helper.get_item(gp_0, 'l_norm')
         b_to_t = self.helper.get_item(gp_0, 'b_to_t')
