@@ -168,6 +168,22 @@ class MultiwavelengthSED(nn.Module):
             return m_disk + m_bulge
 
 
+    def compute_sfr(self, gp_0, sfh_disk, sfh_bulge, time_scale=1e8, separate=False):
+        sfh_disk, sfh_bulge = self.convert_sfh(gp_0, sfh_disk, sfh_bulge)
+        sfh_disk = self.lib_ssp.sum_over_met(sfh_disk)
+        sfh_bulge = self.lib_ssp.sum_over_met(sfh_bulge)
+
+        d_tau = torch.cumsum(self.lib_ssp.d_tau, dim=0)
+        idx = torch.argmin(torch.abs(d_tau - time_scale)) 
+        sfr_disk = sfh_disk[:, :idx+1].sum(dim=1)/d_tau[idx]
+        sfr_bulge = sfh_bulge[:, :idx+1].sum(dim=1)/d_tau[idx]
+
+        if separate:
+            return sfr_disk, sfr_bulge
+        else:
+            return sfr_disk + sfr_bulge
+
+
     def convert_sfh(self, gp_0, sfh_disk, sfh_bulge):
         convert = lambda sfh, l_norm: self.lib_ssp.reshape_sfh(sfh)/self.lib_ssp.norm*l_norm
 
