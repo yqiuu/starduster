@@ -34,13 +34,13 @@ class SSPLibrary:
 
 
     def reshape_sfh(self, sfh):
-        return torch.atleast_2d(sfh).reshape((-1, *self.lib_ssp.sfh_shape))
+        return torch.atleast_2d(sfh).reshape((-1, *self.sfh_shape))
 
 
     def sum_over_age(self, sfh):
-        return self.reshape_sfh(sfh).sum(dim=self.lib_ssp.dim_age)
+        return self.reshape_sfh(sfh).sum(dim=self.dim_age)
 
 
     def sum_over_met(self, sfh):
-        return self.reshape_sfh(sfh).sum(dim=self.lib_ssp.dim_met)
+        return self.reshape_sfh(sfh).sum(dim=self.dim_met)
 
