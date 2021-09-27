@@ -74,13 +74,14 @@ class DiscreteSFH(ParameterSet):
 class DiscreteSFR_InterpolatedMet(ParameterSet):
     # TODO: Add functions to make sure that the SFH is normalised to one.
     # Handle the situation where there are only two SFR bins.
-    def __init__(self, lib_ssp, sfr_bins=None, **fixed_params):
+    def __init__(self, lib_ssp, sfr_bins=None, simplex_transform=False, **fixed_params):
         self.n_tau_ssp = lib_ssp.n_tau
         if sfr_bins is None:
             n_sfr = lib_ssp.n_tau
         else:
             n_sfr = len(sfr_bins)
         self.sfr_bins = sfr_bins
+        self.simplex_transform = simplex_transform
 
         met_sol = 0.019
         log_met = torch.log10(lib_ssp.met/met_sol)[:, None]
@@ -94,8 +95,14 @@ class DiscreteSFR_InterpolatedMet(ParameterSet):
 
 
     def derive_full_params(self, params):
+        def simplex_transform(x):
+            x = -torch.log(1 - x)
+            return x/x.sum(dim=1, keepdim=True)
+
         sfr = params[:, :self.n_sfr]
         log_met = params[:, self.n_sfr:]
+        if self.simplex_transform:
+            sfr = simplex_transform(sfr)
         sfh = sfr[:, None, :]*self.derive_idw_met(log_met)
         if self.n_sfr != self.n_tau_ssp:
             sfh_full = torch.zeros([sfh.size(0), sfh.size(1), self.n_tau_ssp],
@@ -150,4 +157,4 @@ def derive_default_params(param_names, fixed_params):
         else:
             free_inds.append(i_k)
     return params_default, free_inds
-           
+
