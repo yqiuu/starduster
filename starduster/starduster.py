@@ -158,6 +158,8 @@ class MultiwavelengthSED(nn.Module):
         r_disk = self.helper.get_item(gp_0, 'r_disk')
         r_bulge = self.helper.get_item(gp_0, 'r_bulge')
         r_dust = r_disk*self.helper.get_item(gp_0, 'r_dust_to_rd')
+        l_norm = self.helper.get_item(gp_0, 'l_norm')
+        b_to_t = self.helper.get_item(gp_0, 'b_to_t')
         m_dust = self.compute_m_dust(gp_0)
         m_disk, m_bulge = self.compute_m_star(gp_0, sfh_disk, sfh_bulge, separate=True)
         m_star = m_disk + m_bulge
@@ -167,8 +169,8 @@ class MultiwavelengthSED(nn.Module):
         sfr_100 = self.compute_sfr(gp_0, sfh_disk, sfh_bulge, time_scale=1e8, separate=False)
 
         names = [
-            'theta', 'r_disk', 'r_bulge', 'r_dust', 'm_dust',
-            'm_disk', 'm_bulge', 'm_star', 'sfr_10', 'sfr_100'
+            'theta', 'r_disk', 'r_bulge', 'r_dust', 'l_norm', 'b_to_t',
+            'm_dust', 'm_disk', 'm_bulge', 'm_star', 'sfr_10', 'sfr_100'
         ]
         # TODO: put units in somewhere more formal
         units = {
@@ -176,6 +178,8 @@ class MultiwavelengthSED(nn.Module):
             'r_disk': 'kpc',
             'r_bulge': 'kpc',
             'r_dust': 'kpc',
+            'l_norm': 'L_sol',
+            'b_to_t': '',
             'm_dust': 'M_sol',
             'm_disk': 'M_sol',
             'm_bulge': 'M_sol',
@@ -190,6 +194,8 @@ class MultiwavelengthSED(nn.Module):
             for key, val in summary.items():
                 if key == 'theta':
                     print("{}: {:.1f} {}".format(key, val[0], units[key]))
+                elif key == 'b_to_t':
+                    print("{}: {:.2f} {}".format(key, val[0], units[key]))
                 else:
                     print("{}: {:.3e} {}".format(key, val[0], units[key]))
 
