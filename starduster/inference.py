@@ -51,7 +51,7 @@ class Posterior(nn.Module):
         y = sed_model.generate(*model_params)
         log_post = self._sign*(self.log_like(y) + log_out)
         if self._output_mode == 'numpy':
-            return log_post.detach().cpu().numpy()
+            return np.squeeze(log_post.detach().cpu().numpy())
         elif self._output_mode == 'numpy_grad':
             log_post.backward()
             return log_post.detach().cpu().numpy(), np.array(params.grad.cpu(), dtype=np.float64)

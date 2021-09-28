@@ -280,7 +280,6 @@ class Adapter(nn.Module):
 
 
     def forward(self, params):
-        params = torch.as_tensor(params, dtype=torch.float32, device=self.device)
         gp, sfh_disk, sfh_bulge, is_out = self.derive_free_params(params)
         return self.derive_model_params(gp, sfh_disk, sfh_bulge)
 
@@ -331,6 +330,8 @@ class Adapter(nn.Module):
 
 
     def derive_free_params(self, params):
+        params = torch.as_tensor(params, dtype=torch.float32, device=self.device)
+
         dim = params.dim() - 1
         is_out = torch.any(params <= self.lbounds, dim=dim) \
             | torch.any(params >= self.ubounds, dim=dim)
