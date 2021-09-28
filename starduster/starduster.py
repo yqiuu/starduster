@@ -150,7 +150,7 @@ class MultiwavelengthSED(nn.Module):
         self.detector.configure(filters=filters, z=z, distmod=distmod, ab_mag=ab_mag)
 
 
-    def compute_parameter_summary(self, params, print_summary=False):
+    def compute_parameter_summary(self, params, log_scale=False, print_summary=False):
         gp, sfh_disk, sfh_bulge = self.adapter(params)
         gp_0 = self.helper.recover_all(gp, torch)
 
@@ -188,7 +188,15 @@ class MultiwavelengthSED(nn.Module):
             'sfr_100': 'M_sol/yr'
         }
         variables = locals()
-        summary = {key: variables[key] for key in names}
+        summary = {}
+        for key in names:
+            if key == 'theta' or key == 'b_to_t':
+                summary[key] = variables[key]
+            else:
+                if log_scale:
+                    summary[key] = torch.log10(variables[key])
+                else:
+                    summary[key] = variables[key]
 
         if print_summary:
             for key, val in summary.items():
@@ -197,7 +205,10 @@ class MultiwavelengthSED(nn.Module):
                 elif key == 'b_to_t':
                     print("{}: {:.2f} {}".format(key, val[0], units[key]))
                 else:
-                    print("{}: {:.3e} {}".format(key, val[0], units[key]))
+                    if log_scale:
+                        print("{}: {:.2f} {}".format(key, val[0], units[key]))
+                    else:
+                        print("{}: {:.2e} {}".format(key, val[0], units[key]))
 
         return summary
 
