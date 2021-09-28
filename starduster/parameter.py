@@ -74,7 +74,7 @@ class DiscreteSFH(ParameterSet):
 class DiscreteSFR_InterpolatedMet(ParameterSet):
     # TODO: Add functions to make sure that the SFH is normalised to one.
     # Handle the situation where there are only two SFR bins.
-    def __init__(self, lib_ssp, sfr_bins=None, simplex_transform=False, **fixed_params):
+    def __init__(self, lib_ssp, sfr_bins=None, uni_met=False, simplex_transform=False, **fixed_params):
         self.n_tau_ssp = lib_ssp.n_tau
         if sfr_bins is None:
             n_sfr = lib_ssp.n_tau
@@ -85,9 +85,15 @@ class DiscreteSFR_InterpolatedMet(ParameterSet):
 
         met_sol = 0.019
         log_met = torch.log10(lib_ssp.met/met_sol)[:, None]
-        bounds = np.vstack([[(0., 1.)]*n_sfr, [(float(log_met[0]), float(log_met[-1]))]*n_sfr])
-        param_names = [f'sfr_{i_sfr}' for i_sfr in range(n_sfr)] \
-            + [f'log_met_{i_sfr}' for i_sfr in range(n_sfr)]
+        log_met_min = float(log_met[0])
+        log_met_max = float(log_met[-1])
+        if uni_met:
+            bounds = np.array([(0., 1.)]*n_sfr + [(log_met_min, log_met_max)])
+            param_names = [f'sfr_{i_sfr}' for i_sfr in range(n_sfr)] + ['log_met']
+        else:
+            bounds = np.array([(0., 1.)]*n_sfr + [(log_met_min, log_met_max)]*n_sfr)
+            param_names = [f'sfr_{i_sfr}' for i_sfr in range(n_sfr)] \
+                + [f'log_met_{i_sfr}' for i_sfr in range(n_sfr)]
         params_default, free_inds = derive_default_params(param_names, fixed_params)
         super().__init__(bounds, params_default, free_inds)
         self.register_buffer('log_met', log_met)
