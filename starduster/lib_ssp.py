@@ -1,6 +1,7 @@
 from .utils import reduction, interp_arr
 
 import pickle
+from os import path
 
 import numpy as np
 import torch
@@ -44,4 +45,11 @@ class SSPLibrary:
 
     def sum_over_met(self, sfh):
         return self.reshape_sfh(sfh).sum(dim=self.dim_met)
+
+
+def load_builtin_library():
+    dirname = path.join(path.dirname(path.abspath(__file__)), "database")
+    fname = path.join(dirname, "FSPS_Chabrier_neb_compact.pickle")
+    lam_main = pickle.load(open(path.join(dirname, "lam_main.pickle"), "rb"))
+    return SSPLibrary(fname, lam_main)
 
