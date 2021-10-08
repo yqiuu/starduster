@@ -30,7 +30,8 @@ class SSPLibrary:
         self.l_ssp = torch.tensor(l_ssp, dtype=torch.float32)
         self.L_ssp = torch.tensor(L_ssp, dtype=torch.float32)
         self.norm = torch.tensor(lib_ssp['norm'], dtype=torch.float32)
-        self.d_tau = torch.tensor(lib_ssp['d_tau'], dtype=torch.float32)
+        self.tau_edges = torch.tensor(lib_ssp['tau_edges'], dtype=torch.float32)
+        self.d_tau = torch.diff(self.tau_edges)
 
 
     def reshape_sfh(self, sfh):
