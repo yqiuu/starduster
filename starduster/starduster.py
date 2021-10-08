@@ -133,7 +133,7 @@ class MultiwavelengthSED(nn.Module):
         )
 
 
-    def configure_output_mode(self, filters=None, z=0., distmod=0., ab_mag=False):
+    def configure_output_mode(self, filters=None, z=0., distmod=0., ab_mag=False, f_nu=True):
         """Configure the output mode.
 
         Parameters
@@ -147,7 +147,7 @@ class MultiwavelengthSED(nn.Module):
         ab_mag : bool
             If True, return AB magnitudes. If False, return flux densities.
         """
-        self.detector.configure(filters=filters, z=z, distmod=distmod, ab_mag=ab_mag)
+        self.detector.configure(filters=filters, z=z, distmod=distmod, ab_mag=ab_mag, f_nu=f_nu)
 
 
     def compute_parameter_summary(self, params, log_scale=False, print_summary=False):
@@ -393,10 +393,13 @@ class Detector(nn.Module):
             else:
                 return fluxes
         else:
-            return l_target*self.lam*(self.unit_f_nu*self.dist_factor)
+            if self.f_nu:
+                return l_target*self.lam*(self.unit_f_nu*self.dist_factor)
+            else:
+                return l_target*(self.unit_nu_f_nu*self.dist_factor)
 
 
-    def configure(self, filters=None, z=0., distmod=0., ab_mag=True):
+    def configure(self, filters=None, z=0., distmod=0., ab_mag=True, f_nu=True):
         lam = self.lam_base*(1 + z)
         self.register_buffer('lam', lam)
         if filters is not None:
@@ -409,6 +412,7 @@ class Detector(nn.Module):
             self.register_buffer('lam_pivot', torch.tensor(lam_pivot, dtype=torch.float32))
         self.dist_factor = 10**(-.4*distmod)
         self.ab_mag = ab_mag
+        self.f_nu = f_nu
 
 
     def _set_transmission(self, ftr, lam):
@@ -426,5 +430,6 @@ class Detector(nn.Module):
     def _set_unit(self):
         unit_f_nu = U.solLum/(4*np.pi*(10*U.parsec)**2)*U.micrometer/constants.c
         self.unit_f_nu = unit_f_nu.to(U.jansky).value
+        self.unit_nu_f_nu = (1./(4*np.pi*(10*U.parsec)**2)).to(U.cm**-2).value
         self.unit_jansky = self.unit_f_nu
 
