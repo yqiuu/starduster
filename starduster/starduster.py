@@ -387,16 +387,20 @@ class Detector(nn.Module):
             Generalized flux density (nu*f_nu).
         """
         if return_ph:
-            fluxes = torch.trapz(l_target[:, None, :]*self.trans_filter, self.lam)*self.dist_factor
-            if self.ab_mag:
-                return -2.5*torch.log10(fluxes) + 8.9
-            else:
-                return fluxes
+            return self.apply_filters(l_target)
         else:
             if self.jansky:
                 return l_target*self.lam*(self.unit_f_nu*self.dist_factor)
             else:
                 return l_target
+
+
+    def apply_filters(self, l_target):
+        fluxes = torch.trapz(l_target[:, None, :]*self.trans_filter, self.lam)*self.dist_factor
+        if self.ab_mag:
+            return -2.5*torch.log10(fluxes) + 8.9
+        else:
+            return fluxes
 
 
     def configure(self, filters=None, z=0., distmod=0., ab_mag=True, jansky=True):
