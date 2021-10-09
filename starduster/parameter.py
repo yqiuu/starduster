@@ -73,10 +73,12 @@ class ParameterSet(nn.Module):
 
 @partial_init
 class GalaxyParameter(ParameterSet):
-    def __init__(self, helper, clip_bounds=True, **fixed_params):
-        bounds = [(-1., 1.)]*len(helper.header)
-        params_default, free_inds = derive_default_params(helper.header.keys(), fixed_params)
-        super().__init__(bounds, params_default, free_inds, clip_bounds)
+    def __init__(self, helper, bounds=None, clip_bounds=True, **fixed_params):
+        bounds_default = [(-1., 1.)]*len(helper.header)
+        param_names = helper.header.keys()
+        params_default, free_inds = derive_default_params(param_names, fixed_params)
+        update_bounds(param_names, bounds_default, bounds)
+        super().__init__(bounds_default, params_default, free_inds, clip_bounds)
 
 
 @partial_init
@@ -99,7 +101,7 @@ class DiscreteSFR_InterpolatedMet(ParameterSet):
     # Handle the situation where there are only two SFR bins.
     def __init__(self,
         lib_ssp, sfr_bins=None, uni_met=False, simplex_transform=False,
-        clip_bounds=True, **fixed_params
+        bounds=None, clip_bounds=True, **fixed_params
     ):
         self.n_tau_ssp = lib_ssp.n_tau
         if sfr_bins is None:
@@ -114,14 +116,15 @@ class DiscreteSFR_InterpolatedMet(ParameterSet):
         log_met_min = float(log_met[0])
         log_met_max = float(log_met[-1])
         if uni_met:
-            bounds = np.array([(0., 1.)]*n_sfr + [(log_met_min, log_met_max)])
+            bounds_default = np.array([(0., 1.)]*n_sfr + [(log_met_min, log_met_max)])
             param_names = [f'sfr_{i_sfr}' for i_sfr in range(n_sfr)] + ['log_met']
         else:
-            bounds = np.array([(0., 1.)]*n_sfr + [(log_met_min, log_met_max)]*n_sfr)
+            bounds_default = np.array([(0., 1.)]*n_sfr + [(log_met_min, log_met_max)]*n_sfr)
             param_names = [f'sfr_{i_sfr}' for i_sfr in range(n_sfr)] \
                 + [f'log_met_{i_sfr}' for i_sfr in range(n_sfr)]
         params_default, free_inds = derive_default_params(param_names, fixed_params)
-        super().__init__(bounds, params_default, free_inds, clip_bounds)
+        update_bounds(param_names, bounds_default, bounds)
+        super().__init__(bounds_default, params_default, free_inds, clip_bounds)
         self.register_buffer('log_met', log_met)
         self.n_sfr = n_sfr
 
@@ -154,17 +157,18 @@ class DiscreteSFR_InterpolatedMet(ParameterSet):
 
 @partial_init
 class InverseDistanceWeightedSFH(ParameterSet):
-    def __init__(self, lib_ssp, clip_bounds=True, **fixed_params):
+    def __init__(self, lib_ssp, bounds=None, clip_bounds=True, **fixed_params):
         met_sol = 0.019
         log_met = torch.log10(lib_ssp.met/met_sol)[:, None]
         log_tau = torch.log10(lib_ssp.tau)[:, None]
-        bounds = np.asarray([
+        bounds_default = np.asarray([
             (float(log_met[0]), float(log_met[-1])), (-2., 1.),
             (float(log_tau[0]), float(log_tau[-1])), (-2., 1.)
         ])
         param_names = ['log_met', 's_met', 'log_tau', 's_tau']
         params_default, free_inds = derive_default_params(param_names, fixed_params)
-        super().__init__(bounds, params_default, free_inds, clip_bounds)
+        update_bounds(param_names, bounds_default, bounds)
+        super().__init__(bounds_default, params_default, free_inds, clip_bounds)
         self.register_buffer('log_met', log_met)
         self.register_buffer('log_tau', log_tau)
 
@@ -188,4 +192,19 @@ def derive_default_params(param_names, fixed_params):
         else:
             free_inds.append(i_k)
     return params_default, free_inds
+
+
+def update_bounds(param_names, bounds_default, bounds):
+    if bounds is None:
+        return
+
+    for i_k, key in enumerate(param_names):
+        if key in bounds:
+            lb, ub = bounds_default[i_k]
+            lb_new, ub_new = bounds[key]
+            if lb_new >= lb and ub_new <= ub:
+                bounds_default[i_k] = (lb_new, ub_new)
+            else:
+                msg = "The bounds of {} should be within [{:.2f}, {:.2f}]".format(key, lb, ub)
+                raise ValueError(msg)
 
