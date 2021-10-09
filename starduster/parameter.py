@@ -31,11 +31,26 @@ class ParameterSet(nn.Module):
         if self.input_size == 0:
             self.bounds = np.empty((0, 2), dtype=np.float)
         else:
-            self.bounds = np.asarray(bounds)[self.free_inds]
+            bounds = np.asarray(bounds)[self.free_inds]
+            lbounds, ubounds = torch.tensor(bounds, dtype=torch.float32).T
+            self.register_buffer('lbounds', lbounds)
+            self.register_buffer('ubounds', ubounds)
+            self.register_buffer('bound_radius', .5*(ubounds - lbounds))
+            self.register_buffer('bound_centre', .5*(ubounds + lbounds))
+            self.bounds = bounds
 
 
-    def forward(self, params):
-        return self.derive_full_params(self.set_fixed_params(params))
+    def forward(self, params, check_bounds=False):
+        params = self.derive_full_params(self.set_fixed_params(params))
+        if check_bounds:
+            if self.input_size == 0:
+                is_out = torch.full((params.size(0),), False)
+            else:
+                is_out = torch.any(params <= self.lbounds, dim=-1) \
+                    | torch.any(params >= self.ubounds, dim=-1)
+            return params, is_out
+        else:
+            return params
 
 
     def set_fixed_params(self, params):
