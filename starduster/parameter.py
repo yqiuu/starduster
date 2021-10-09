@@ -42,14 +42,7 @@ class ParameterSet(nn.Module):
         self.clip_bounds = clip_bounds
 
 
-    def forward(self, params, check_bounds=False):
-        if check_bounds:
-            if self.input_size == 0:
-                is_out = torch.full((params.size(0),), False)
-            else:
-                is_out = torch.any(params <= self.lbounds, dim=-1) \
-                    | torch.any(params >= self.ubounds, dim=-1)
-
+    def forward(self, params):
         if self.clip_bounds:
             eps = 1e-6
             params = (params - self.bound_centre)/self.bound_radius
@@ -57,11 +50,15 @@ class ParameterSet(nn.Module):
             params = self.bound_radius*params + self.bound_centre
 
         params = self.derive_full_params(self.set_fixed_params(params))
+        return params
 
-        if check_bounds:
-            return params, is_out
+
+    def check_bounds(self, params):
+        if self.input_size == 0:
+            return torch.full((params.size(0),), False)
         else:
-            return params
+            return torch.any(params <= self.lbounds, dim=-1) \
+                | torch.any(params >= self.ubounds, dim=-1)
 
 
     def set_fixed_params(self, params):
@@ -180,7 +177,6 @@ class InverseDistanceWeightedSFH(ParameterSet):
         inv = 1./(torch.abs(log_tau - self.log_tau)**(10**s_tau) + eps)
         w_tau = (inv/inv.sum(dim=0)).T
         return torch.flatten(w_met[:, :, None]*w_tau[:, None, :], start_dim=1)
-
 
 
 def derive_default_params(param_names, fixed_params):
