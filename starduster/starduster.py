@@ -342,13 +342,6 @@ class Adapter(nn.Module):
 
     def derive_free_params(self, params):
         params = torch.as_tensor(params, dtype=torch.float32, device=self.device)
-
-        if self.bounds_transform:
-            eps = 1e-6
-            params = (params - self.bound_centre)/self.bound_radius
-            params = F.hardtanh(params, -1 + eps, 1 - eps)
-            params = self.bound_radius*params + self.bound_centre
-
         gp, sfh_disk, sfh_bulge = self.unflatten(params)
         return gp, sfh_disk, sfh_bulge
 
@@ -361,7 +354,7 @@ class Detector(nn.Module):
     """Apply unit conversion and filters to the input fluxes.
 
     Parameters
-    ----------
+    ---------- 
     filters : array
         An array of pyphot filter instances.
     lam : tensor [micrometer]
