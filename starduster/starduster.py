@@ -112,7 +112,9 @@ class MultiwavelengthSED(nn.Module):
         return torch.squeeze(self.detector(l_tot, return_ph))
 
 
-    def configure_input_mode(self, gp=None, sfh_disk=None, sfh_bulge=None, device='cpu'):
+    def configure_input_mode(self,
+        gp=None, sfh_disk=None, sfh_bulge=None, flat_input=False, device='cpu'
+    ):
         """Configure the input mode.
 
         Parameters
@@ -129,7 +131,7 @@ class MultiwavelengthSED(nn.Module):
         self.adapter.configure(
             helper=self.helper, lib_ssp=self.lib_ssp,
             gp=gp, sfh_disk=sfh_disk, sfh_bulge=sfh_bulge,
-            device=device,
+            flat_input=flat_input, device=device,
         )
 
 
@@ -290,13 +292,17 @@ class Adapter(nn.Module):
         self.configure(helper, lib_ssp)
 
 
-    def forward(self, params):
-        gp, sfh_disk, sfh_bulge = self.derive_free_params(params)
-        return self.derive_model_params(gp, sfh_disk, sfh_bulge)
+    def forward(self, *args):
+        if self.flat_input:
+            params = torch.as_tensor(args[0], dtype=torch.float32, device=self.device)
+            gp, sfh_disk, sfh_bulge = self.unflatten(params)
+        else:
+            gp, sfh_disk, sfh_bulge = args
+        return self.pset_gp(gp), self.pset_sfh_disk(sfh_disk), self.pset_sfh_bulge(sfh_bulge)
 
 
     def configure(self,
-        helper, lib_ssp, gp=None, sfh_disk=None, sfh_bulge=None, device='cpu'
+        helper, lib_ssp, gp=None, sfh_disk=None, sfh_bulge=None, flat_input=False, device='cpu'
     ):
         if gp is None:
             gp = GalaxyParameter()
@@ -307,6 +313,7 @@ class Adapter(nn.Module):
         self.pset_gp = gp.init(helper)
         self.pset_sfh_disk = sfh_disk.init(lib_ssp)
         self.pset_sfh_bulge = sfh_bulge.init(lib_ssp)
+        self.flat_input = flat_input
         self.device = device
         #
         pset_names = ['pset_gp', 'pset_sfh_disk', 'pset_sfh_bulge']
@@ -338,16 +345,6 @@ class Adapter(nn.Module):
             params_out[i_input] = params[:, idx_b:idx_e]
             idx_b = idx_e
         return params_out
-
-
-    def derive_free_params(self, params):
-        params = torch.as_tensor(params, dtype=torch.float32, device=self.device)
-        gp, sfh_disk, sfh_bulge = self.unflatten(params)
-        return gp, sfh_disk, sfh_bulge
-
-
-    def derive_model_params(self, gp, sfh_disk, sfh_bulge):
-        return self.pset_gp(gp), self.pset_sfh_disk(sfh_disk), self.pset_sfh_bulge(sfh_bulge)
 
 
 class Detector(nn.Module):
