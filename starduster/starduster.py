@@ -108,9 +108,7 @@ class MultiwavelengthSED(nn.Module):
         return torch.squeeze(self.detector(l_tot, return_ph))
 
 
-    def configure_input_mode(self,
-        gp=None, sfh_disk=None, sfh_bulge=None, flat_input=False, device='cpu'
-    ):
+    def configure_input_mode(self, gp=None, sfh_disk=None, sfh_bulge=None, flat_input=False):
         """Configure the input mode.
 
         Parameters
@@ -121,13 +119,11 @@ class MultiwavelengthSED(nn.Module):
             Parametrisation of the disk component star formation history.
         sfh_bulge : ParameterSet
             Parametrisation of the bulge component star formation history.
-        device : torch.device
-            Device of the module.
         """
         self.adapter.configure(
             helper=self.helper, lib_ssp=self.lib_ssp,
             gp=gp, sfh_disk=sfh_disk, sfh_bulge=sfh_bulge,
-            flat_input=flat_input, device=device,
+            flat_input=flat_input,
         )
 
 
@@ -180,6 +176,7 @@ class Adapter(nn.Module):
             self.selector_disk = selector_disk
         if selector_bulge is not None:
             self.selector_bulge = selector_bulge
+        self.register_buffer("device_tensor", torch.tensor(0.), persistent=False)
         self.configure(helper, lib_ssp)
 
 
@@ -213,7 +210,7 @@ class Adapter(nn.Module):
 
 
     def configure(self,
-        helper, lib_ssp, gp=None, sfh_disk=None, sfh_bulge=None, flat_input=False, device='cpu'
+        helper, lib_ssp, gp=None, sfh_disk=None, sfh_bulge=None, flat_input=False,
     ):
         if gp is None:
             gp = GalaxyParameter()
@@ -225,7 +222,6 @@ class Adapter(nn.Module):
         self.pset_sfh_disk = sfh_disk.init(lib_ssp)
         self.pset_sfh_bulge = sfh_bulge.init(lib_ssp)
         self.flat_input = flat_input
-        self.device = device
         #
         pset_names = ['pset_gp', 'pset_sfh_disk', 'pset_sfh_bulge']
         free_shape = []
@@ -248,6 +244,11 @@ class Adapter(nn.Module):
             params_out[i_input] = params[:, idx_b:idx_e]
             idx_b = idx_e
         return params_out
+
+
+    @property
+    def device(self):
+        return self.device_tensor.device
 
 
 class Detector(nn.Module):
