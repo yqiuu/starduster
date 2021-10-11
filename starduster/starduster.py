@@ -236,15 +236,7 @@ class Adapter(nn.Module):
             bounds.append(pset.bounds)
         self.free_shape = free_shape
         self.input_size = sum(self.free_shape)
-        #
-        bounds = np.vstack(bounds)
-        lbounds, ubounds = torch.tensor(bounds, dtype=torch.float32, device=self.device).T
-        self.register_buffer('lbounds', lbounds)
-        self.register_buffer('ubounds', ubounds)
-        self.register_buffer('bound_radius', .5*(ubounds - lbounds))
-        self.register_buffer('bound_centre', .5*(ubounds + lbounds))
-        self.bounds = bounds
-        self.bounds_transform = True
+        self.bounds = np.vstack(bounds)
 
 
     def unflatten(self, params):
