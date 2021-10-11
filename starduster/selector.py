@@ -46,13 +46,16 @@ def sample_from_selector(n_samp, selector_disk=None, selector_bulge=None, sample
     else:
         helper = selector_bulge.helper
 
-    if selector_bulge is not None:
-        slice_col = helper.lookup['curve_bulge_inds']
+    if sampler is None:
+        if selector_bulge is not None:
+            slice_col = helper.lookup['curve_bulge_inds']
+        else:
+            slice_col = helper.lookup['curve_disk_inds']
+        n_col = slice_col.stop - slice_col.start
+        params_accept = torch.zeros([0, n_col])
     else:
-        slice_col = helper.lookup['curve_disk_inds']
-    n_col = slice_col.stop - slice_col.start
+        params_accept = torch.zeros([0, sampler(0).size(1)])
 
-    params_accept = torch.zeros([0, n_col])
     while len(params_accept) < n_samp:
         if sampler is None:
             params = 2*torch.rand(2*n_samp, n_col) - 1.
