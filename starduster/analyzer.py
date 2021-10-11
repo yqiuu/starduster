@@ -11,10 +11,14 @@ class Analyzer:
 
 
     def sample(self, n_samp):
-        adpater = self.sed_model.adapter
+        adapter = self.sed_model.adapter
         lb, ub = torch.tensor(self.sed_model.adapter.bounds, dtype=torch.float32).T
         sampler = lambda n_samp: (ub - lb)*torch.rand([n_samp, len(lb)]) + lb
-        return sample_from_selector(n_samp, adpater.selector_disk, adpater.selector_bulge, sampler)
+        adapter.selector_disk.cpu()
+        adapter.selector_bulge.cpu()
+        samps = sample_from_selector(n_samp, adapter.selector_disk, adapter.selector_bulge, sampler)
+        adapter.to(adapter.device)
+        return samps
 
 
     def compute_parameter_summary(self, params, log_scale=False, print_summary=False):
