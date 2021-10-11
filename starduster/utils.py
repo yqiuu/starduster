@@ -1,11 +1,39 @@
+from collections import namedtuple
+
 import numpy as np
 import torch
 
 
 __all__ = [
-    "merge_history", "load_model", "search_inds", "reduction", "interp_arr"
+    "constants", "units", "merge_history", "load_model", "search_inds",
+    "reduction", "interp_arr"
 ]
 
+def namedtuple_from_dict(name, target):
+    return namedtuple(name, target.keys())(**target)
+
+constants = namedtuple_from_dict(
+    'Constants',
+    {'met_sol': 0.019}
+)
+
+units = namedtuple_from_dict(
+    'Units',
+    {
+        'theta': 'deg',
+        'r_disk': 'kpc',
+        'r_bulge': 'kpc',
+        'r_dust': 'kpc',
+        'l_norm': 'L_sol',
+        'b_to_t': '',
+        'm_dust': 'M_sol',
+        'm_disk': 'M_sol',
+        'm_bulge': 'M_sol',
+        'm_star': 'M_sol',
+        'sfr_10': 'M_sol/yr',
+        'sfr_100': 'M_sol/yr'
+    }
+)
 
 def merge_history(history1, history2):
     history = {}

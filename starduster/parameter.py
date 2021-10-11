@@ -1,3 +1,5 @@
+from .utils import constants
+
 import numpy as np
 import torch
 from torch import nn
@@ -132,8 +134,7 @@ class DiscreteSFR_InterpolatedMet(ParameterSet):
         self.sfr_bins = sfr_bins
         self.simplex_transform = simplex_transform
 
-        met_sol = 0.019
-        log_met = torch.log10(lib_ssp.met/met_sol)[:, None]
+        log_met = torch.log10(lib_ssp.met/constants.met_sol)[:, None]
         log_met_min = float(log_met[0])
         log_met_max = float(log_met[-1])
         if uni_met:
@@ -177,8 +178,7 @@ class DiscreteSFR_InterpolatedMet(ParameterSet):
 @partial_init
 class InverseDistanceWeightedSFH(ParameterSet):
     def __init__(self, lib_ssp, bounds=None, clip_bounds=True, **fixed_params):
-        met_sol = 0.019
-        log_met = torch.log10(lib_ssp.met/met_sol)[:, None]
+        log_met = torch.log10(lib_ssp.met/constants.met_sol)[:, None]
         log_tau = torch.log10(lib_ssp.tau)[:, None]
         param_names = ['log_met', 's_met', 'log_tau', 's_tau']
         bounds_default = np.asarray([

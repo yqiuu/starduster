@@ -1,3 +1,4 @@
+from .utils import units
 from .selector import sample_from_selector
 
 import torch
@@ -44,21 +45,6 @@ class Analyzer:
             'theta', 'r_disk', 'r_bulge', 'r_dust', 'l_norm', 'b_to_t',
             'm_dust', 'm_disk', 'm_bulge', 'm_star', 'sfr_10', 'sfr_100'
         ]
-        # TODO: put units in somewhere more formal
-        units = {
-            'theta': '',
-            'r_disk': 'kpc',
-            'r_bulge': 'kpc',
-            'r_dust': 'kpc',
-            'l_norm': 'L_sol',
-            'b_to_t': '',
-            'm_dust': 'M_sol',
-            'm_disk': 'M_sol',
-            'm_bulge': 'M_sol',
-            'm_star': 'M_sol',
-            'sfr_10': 'M_sol/yr',
-            'sfr_100': 'M_sol/yr'
-        }
         variables = locals()
         summary = {}
         for key in names:
@@ -72,15 +58,16 @@ class Analyzer:
 
         if print_summary:
             for key, val in summary.items():
+                msg = (key, val[0], getattr(units, key))
                 if key == 'theta':
-                    print("{}: {:.1f} {}".format(key, val[0], units[key]))
+                    print("{}: {:.1f} {}".format(*msg))
                 elif key == 'b_to_t':
-                    print("{}: {:.2f} {}".format(key, val[0], units[key]))
+                    print("{}: {:.2f} {}".format(*msg))
                 else:
                     if log_scale:
-                        print("{}: {:.2f} {}".format(key, val[0], units[key]))
+                        print("{}: {:.2f} {}".format(*msg))
                     else:
-                        print("{}: {:.2e} {}".format(key, val[0], units[key]))
+                        print("{}: {:.2e} {}".format(*msg))
 
         return summary
 
