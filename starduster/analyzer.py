@@ -1,6 +1,7 @@
 from .selector import sample_from_selector
 
 import torch
+import numpy as np
 
 
 class Analyzer:
@@ -119,7 +120,8 @@ class Analyzer:
 
 
     def convert_sfh(self, gp_0, sfh_disk, sfh_bulge):
-        convert = lambda sfh, l_norm: self.lib_ssp.reshape_sfh(sfh)/self.lib_ssp.norm*l_norm
+        convert = lambda sfh, l_norm: \
+            self.lib_ssp.reshape_sfh(sfh)/self.lib_ssp.norm*l_norm[:, None, None]
 
         l_norm = self.helper.get_item(gp_0, 'l_norm')
         b_to_t = self.helper.get_item(gp_0, 'b_to_t')
