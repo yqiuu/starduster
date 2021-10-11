@@ -37,26 +37,17 @@ class Posterior(nn.Module):
         if self._output_mode == 'numpy_grad':
             params = torch.tensor(params, dtype=torch.float32, requires_grad=True)
 
-        sed_model = self.sed_model
-        gp, sfh_disk, sfh_bulge, is_out = sed_model.adapter.derive_free_params(params)
-        model_params = sed_model.adapter.derive_model_params(gp, sfh_disk, sfh_bulge)
+        gp, sfh_disk, sfh_bulge, is_out = self.sed_model.adapter(params, check_bounds=True)
+        y = self.sed_model.generate(gp, sfh_disk, sfh_disk, return_ph=True)
+        log_post = self._sign*(self.log_like(y) + self.log_out*is_out)
 
-        gp = model_params[0]
-        gp_curve_disk = sed_model.helper.get_item(gp, 'curve_disk_inds')
-        gp_curve_bulge = sed_model.helper.get_item(gp, 'curve_bulge_inds')
-        is_out_disk = ~sed_model.selector_disk.select(gp_curve_disk)
-        is_out_bulge = ~sed_model.selector_bulge.select(gp_curve_bulge)
-        log_out = self.log_out*(is_out | is_out_disk | is_out_bulge)
-
-        y = sed_model.generate(*model_params)
-        log_post = self._sign*(self.log_like(y) + log_out)
         if self._output_mode == 'numpy':
             return np.squeeze(log_post.detach().cpu().numpy())
         elif self._output_mode == 'numpy_grad':
             log_post.backward()
             return log_post.detach().cpu().numpy(), np.array(params.grad.cpu(), dtype=np.float64)
         return log_post
-    
+
 
     def configure_output_mode(self, output_mode='torch', negative=False, log_out=-1e15):
         if output_mode in ['torch', 'numpy', 'numpy_grad']:

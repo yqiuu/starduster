@@ -55,12 +55,8 @@ class MultiwavelengthSED(nn.Module):
         self.lib_ssp = lib_ssp
         self.dust_attenuation = dust_attenuation
         self.dust_emission = dust_emission
-        self.adapter = Adapter(helper, lib_ssp)
+        self.adapter = Adapter(helper, lib_ssp, selector_disk, selector_bulge)
         self.detector = Detector(lib_ssp.lam)
-        if selector_disk is not None:
-            self.selector_disk = selector_disk
-        if selector_bulge is not None:
-            self.selector_bulge = selector_bulge
         self.return_ph = True
 
 
@@ -287,18 +283,42 @@ class MultiwavelengthSED(nn.Module):
 
 class Adapter(nn.Module):
     """Apply different parametrisation to input parameters"""
-    def __init__(self, helper, lib_ssp):
+    def __init__(self, helper, lib_ssp, selector_disk=None, selector_bulge=None):
         super().__init__()
+        if selector_disk is not None:
+            self.selector_disk = selector_disk
+        if selector_bulge is not None:
+            self.selector_bulge = selector_bulge
         self.configure(helper, lib_ssp)
 
 
-    def forward(self, *args):
+    def forward(self, *args, check_bounds=False):
         if self.flat_input:
             params = torch.as_tensor(args[0], dtype=torch.float32, device=self.device)
             gp, sfh_disk, sfh_bulge = self.unflatten(params)
         else:
             gp, sfh_disk, sfh_bulge = args
-        return self.pset_gp(gp), self.pset_sfh_disk(sfh_disk), self.pset_sfh_bulge(sfh_bulge)
+
+        if check_bounds:
+            is_out = torch.full((gp.size(0),), False, device=self.device)
+            for val, pset in zip(
+                [gp, sfh_disk, sfh_bulge],
+                [self.pset_gp, self.pset_sfh_disk, self.pset_sfh_bulge]
+            ):
+                is_out |= pset.check_bounds(val)
+
+            gp = self.pset_gp(gp)
+            sfh_disk = self.pset_sfh_disk(sfh_disk)
+            sfh_bulge = self.pset_sfh_bulge(sfh_bulge)
+
+            ## Assume helper of selector_disk and selector_bulge are the same
+            helper = self.selector_disk.helper
+            is_out |= ~self.selector_disk.select(helper.get_item(gp, 'curve_disk_inds'))
+            is_out |= ~self.selector_bulge.select(helper.get_item(gp, 'curve_bulge_inds'))
+
+            return gp, sfh_disk, sfh_bulge, is_out
+        else:
+            return self.pset_gp(gp), self.pset_sfh_disk(sfh_disk), self.pset_sfh_bulge(sfh_bulge)
 
 
     def configure(self,
@@ -351,7 +371,7 @@ class Detector(nn.Module):
     """Apply unit conversion and filters to the input fluxes.
 
     Parameters
-    ---------- 
+    ----------
     filters : array
         An array of pyphot filter instances.
     lam : tensor [micrometer]
