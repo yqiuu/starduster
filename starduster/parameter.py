@@ -107,6 +107,18 @@ class GalaxyParameter(ParameterSet):
     def __init__(self, helper, bounds=None, clip_bounds=True, **fixed_params):
         param_names = helper.header.keys()
         bounds_default = [(-1., 1.)]*len(helper.header)
+        # Transform the parameters
+        if bounds is not None:
+            for key, (lb, ub) in bounds.items():
+                lb = helper.transform(lb, key)
+                ub = helper.transform(ub, key)
+                if key == 'theta':
+                    bounds[key] = (ub, lb)
+                else:
+                    bounds[key] = (lb, ub)
+        # Transform the parameters
+        for key, val in fixed_params.items():
+            fixed_params[key] = helper.transform(val, key)
         super().__init__(param_names, fixed_params, bounds_default, bounds, clip_bounds)
 
 
