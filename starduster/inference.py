@@ -37,9 +37,8 @@ class Posterior(nn.Module):
         if self._output_mode == 'numpy_grad':
             params = torch.tensor(params, dtype=torch.float32, requires_grad=True)
 
-        gp, sfh_disk, sfh_bulge, is_out = self.sed_model.adapter(params, check_bounds=True)
-        y = self.sed_model.generate(gp, sfh_disk, sfh_disk, return_ph=True)
-        log_post = self._sign*(self.log_like(y) + self.log_out*is_out)
+        y_pred, is_out = self.sed_model(params, return_ph=True, check_bounds=True)
+        log_post = self._sign*(self.log_like(y_pred) + self.log_out*is_out)
 
         if self._output_mode == 'numpy':
             return np.squeeze(log_post.detach().cpu().numpy())

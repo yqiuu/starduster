@@ -94,17 +94,23 @@ class MultiwavelengthSED(nn.Module):
         return cls(helper, lib_ssp, dust_attenuation, dust_emission, selector_disk, selector_bulge)
 
 
-    def forward(self, *args, return_ph=True):
-        return self.generate(*self.adapter(*args), return_ph)
+    def forward(self, *args, return_ph=True, check_bounds=False):
+        if check_bounds:
+            gp, sfh_disk, sfh_bulge, is_out = self.adapter(*args, check_bounds=check_bounds)
+        else:
+            gp, sfh_disk, sfh_bulge = self.adapter(*args, check_bounds=check_bounds)
 
-
-    def generate(self, gp, sfh_disk, sfh_bulge, return_ph=True):
         l_main = self.dust_attenuation(gp, sfh_disk, sfh_bulge)
         l_dust_slice, frac = self.dust_emission(gp, sfh_disk, sfh_bulge)
         l_dust = self.helper.set_item(torch.zeros_like(l_main), 'slice_lam_de', l_dust_slice)
         l_norm = self.helper.get_recover(gp, 'l_norm', torch)[:, None]
         l_tot = l_norm*(l_main + frac*l_dust)
-        return torch.squeeze(self.detector(l_tot, return_ph))
+        l_ret = torch.squeeze(self.detector(l_tot, return_ph))
+
+        if check_bounds:
+            return l_ret, is_out
+        else:
+            return l_ret
 
 
     def configure_input_mode(self, gp=None, sfh_disk=None, sfh_bulge=None, flat_input=False):
