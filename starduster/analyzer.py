@@ -12,7 +12,7 @@ class Analyzer:
         self.lib_ssp = sed_model.adapter.lib_ssp
 
 
-    def sample(self, n_samp):
+    def sample(self, n_samp=1):
         adapter = self.sed_model.adapter
         lb, ub = torch.tensor(self.sed_model.adapter.bounds, dtype=torch.float32).T
         sampler = lambda n_samp: (ub - lb)*torch.rand([n_samp, len(lb)]) + lb
@@ -20,7 +20,7 @@ class Analyzer:
         adapter.selector_bulge.cpu()
         samps = sample_from_selector(n_samp, adapter.selector_disk, adapter.selector_bulge, sampler)
         adapter.to(adapter.device)
-        return samps
+        return torch.squeeze(samps)
 
 
     def compute_parameter_summary(self, params, log_scale=False, print_summary=False):
