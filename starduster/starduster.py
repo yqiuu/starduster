@@ -176,7 +176,7 @@ class Adapter(nn.Module):
             self.selector_disk = selector_disk
         if selector_bulge is not None:
             self.selector_bulge = selector_bulge
-        self.register_buffer("device_tensor", torch.tensor(0.), persistent=False)
+        self.register_buffer("_device", torch.tensor(0.), persistent=False)
         self.configure(helper, lib_ssp)
 
 
@@ -248,7 +248,7 @@ class Adapter(nn.Module):
 
     @property
     def device(self):
-        return self.device_tensor.device
+        return self._device.device
 
 
 class Detector(nn.Module):
