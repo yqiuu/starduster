@@ -155,6 +155,12 @@ class MultiwavelengthSED(nn.Module):
 
 
     @property
+    def param_names(self):
+        """Parameter names"""
+        return self.adapter.param_names
+
+
+    @property
     def bounds(self):
         """Bounds of input parameters."""
         return self.adapter.bounds
@@ -229,13 +235,16 @@ class Adapter(nn.Module):
         #
         pset_names = ['pset_gp', 'pset_sfh_disk', 'pset_sfh_bulge']
         free_shape = []
+        param_names = []
         bounds = []
         for name in pset_names:
             pset = getattr(self, name)
             free_shape.append(pset.input_size)
+            param_names.extend(pset.param_names)
             bounds.append(pset.bounds)
         self.free_shape = free_shape
         self.input_size = sum(self.free_shape)
+        self.param_names = param_names
         self.bounds = np.vstack(bounds)
 
 

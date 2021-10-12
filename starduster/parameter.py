@@ -25,7 +25,7 @@ def partial_init(cls):
 class ParameterSet(nn.Module):
     def __init__(self, param_names, fixed_params, bounds_default, bounds, clip_bounds):
         super().__init__()
-        self.param_names = param_names
+        self.param_names = list(param_names)
         params_default, free_inds = self._derive_default_params(param_names, fixed_params)
         self._update_bounds(param_names, bounds_default, bounds)
         self.register_buffer('params_default', params_default)
