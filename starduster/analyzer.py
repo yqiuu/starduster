@@ -9,7 +9,7 @@ class Analyzer:
     def __init__(self, sed_model):
         self.sed_model = sed_model
         self.helper = sed_model.helper
-        self.lib_ssp = sed_model.lib_ssp
+        self.lib_ssp = sed_model.adapter.lib_ssp
 
 
     def sample(self, n_samp):

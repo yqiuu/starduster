@@ -52,7 +52,6 @@ class MultiwavelengthSED(nn.Module):
     ):
         super().__init__()
         self.helper = helper
-        self.lib_ssp = lib_ssp
         self.dust_attenuation = dust_attenuation
         self.dust_emission = dust_emission
         self.adapter = Adapter(helper, lib_ssp, selector_disk, selector_bulge)
@@ -121,7 +120,6 @@ class MultiwavelengthSED(nn.Module):
             Parametrisation of the bulge component star formation history.
         """
         self.adapter.configure(
-            helper=self.helper, lib_ssp=self.lib_ssp,
             gp=gp, sfh_disk=sfh_disk, sfh_bulge=sfh_bulge,
             flat_input=flat_input,
         )
@@ -172,12 +170,14 @@ class Adapter(nn.Module):
     """Apply different parametrisation to input parameters"""
     def __init__(self, helper, lib_ssp, selector_disk=None, selector_bulge=None):
         super().__init__()
+        self.helper = helper
+        self.lib_ssp = lib_ssp
         if selector_disk is not None:
             self.selector_disk = selector_disk
         if selector_bulge is not None:
             self.selector_bulge = selector_bulge
         self.register_buffer("_device", torch.tensor(0.), persistent=False)
-        self.configure(helper, lib_ssp)
+        self.configure()
 
 
     def forward(self, *args, check_bounds=False):
@@ -209,18 +209,16 @@ class Adapter(nn.Module):
             return self.pset_gp(gp), self.pset_sfh_disk(sfh_disk), self.pset_sfh_bulge(sfh_bulge)
 
 
-    def configure(self,
-        helper, lib_ssp, gp=None, sfh_disk=None, sfh_bulge=None, flat_input=False,
-    ):
+    def configure(self, gp=None, sfh_disk=None, sfh_bulge=None, flat_input=False):
         if gp is None:
             gp = GalaxyParameter()
         if sfh_disk is None:
             sfh_disk = DiscreteSFH()
         if sfh_bulge is None:
             sfh_bulge = DiscreteSFH()
-        self.pset_gp = gp.init(helper)
-        self.pset_sfh_disk = sfh_disk.init(lib_ssp)
-        self.pset_sfh_bulge = sfh_bulge.init(lib_ssp)
+        self.pset_gp = gp.init(self.helper)
+        self.pset_sfh_disk = sfh_disk.init(self.lib_ssp)
+        self.pset_sfh_bulge = sfh_bulge.init(self.lib_ssp)
         self.flat_input = flat_input
         #
         pset_names = ['pset_gp', 'pset_sfh_disk', 'pset_sfh_bulge']
