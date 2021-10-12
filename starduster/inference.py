@@ -61,17 +61,9 @@ class Posterior(nn.Module):
 
 
 class OptimizerWrapper(nn.Module):
-    def __init__(self, log_post, x0=None):
+    def __init__(self, log_post, x0):
         super().__init__()
-        if x0 is None:
-            adapter = log_post.sed_model.adapter
-            bound_centre = adapter.bound_centre
-            bound_radius = adapter.bound_radius
-            self.params = nn.Parameter(
-                bound_centre + .5*bound_radius*(2*torch.rand_like(bound_centre) - 1)
-            )
-        else:
-            self.params = nn.Parameter(x0)
+        self.params = nn.Parameter(x0)
         # Save log_post as a tuple to prevent addtional parameters
         self._log_post = log_post,
 
