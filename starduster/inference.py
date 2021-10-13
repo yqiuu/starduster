@@ -33,18 +33,17 @@ class Gaussian(ErrorFunction):
 
 
 class GaussianWithScatter(ErrorFunction):
-    def __init__(self, y_obs):
-        super().__init__(['sigma'], [0., 10.])
+    def __init__(self, y_obs, bounds=(-2., 0.)):
+        super().__init__(['sigma'], bounds)
         self.register_buffer('y_obs', y_obs)
     
 
     def forward(self, *args):
-        y_pred, sigma = args
+        y_pred, log_sigma = args
+        sigma = 10**log_sigma
         delta = (y_pred - self.y_obs)/sigma
-        log_like = torch.sum(-.5*delta*delta, dim=-1) \
+        return torch.sum(-.5*delta*delta, dim=-1) \
             - self.y_obs.size(0)*torch.log(np.sqrt(2*np.pi)*sigma)
-        log_prior = -torch.log(sigma)
-        return log_like + log_prior
 
 
 class Posterior(nn.Module):
