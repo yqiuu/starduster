@@ -6,7 +6,7 @@ import torch
 
 __all__ = [
     "constants", "units", "merge_history", "load_model", "search_inds",
-    "reduction", "interp_arr"
+    "reduction", "interp_arr", "accept_reject"
 ]
 
 def namedtuple_from_dict(name, target):
@@ -131,4 +131,16 @@ def interp_arr(x, xp, yp, left=None, right=None, period=None):
     for i_y, y in enumerate(yp):
         y_out[i_y] = np.interp(x, xp, yp[i_y], left, right, period)
     return y_out
+
+
+def accept_reject(n_samp, n_col, sampler, condition, max_iter=1000):
+    samps_accept = torch.zeros([0, n_col])
+    for it in range(max_iter):
+        samps = sampler(n_samp)
+        samps = samps[condition(samps)]
+        samps_accept = torch.vstack([samps_accept, samps])
+        if len(samps_accept) >= n_samp:
+            break
+    assert len(samps_accept) >= n_samp
+    return samps_accept[:n_samp]
 

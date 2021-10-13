@@ -1,3 +1,4 @@
+from .utils import accept_reject
 from .modules import create_mlp
 from .helper import Helper
 
@@ -52,22 +53,17 @@ def sample_from_selector(n_samp, selector_disk=None, selector_bulge=None, sample
         else:
             slice_col = helper.lookup['curve_disk_inds']
         n_col = slice_col.stop - slice_col.start
-        params_accept = torch.zeros([0, n_col])
+        sampler = lambda n_samp: 2*torch.rand(n_samp, n_col) - 1.
     else:
-        params_accept = torch.zeros([0, sampler(0).size(1)])
+        n_col = sampler(0).size(1)
 
-    while len(params_accept) < n_samp:
-        if sampler is None:
-            params = 2*torch.rand(2*n_samp, n_col) - 1.
-        else:
-            params = sampler(2*n_samp)
+    def condition(params):
         cond = torch.full((params.size(0),), True)
         if selector_disk is not None:
             cond &= selector_disk.select(helper.get_item(params, 'curve_disk_inds'))
         if selector_bulge is not None:
             cond &= selector_bulge.select(helper.get_item(params, 'curve_bulge_inds'))
-        params = params[cond]
-        params_accept = torch.vstack([params_accept, params])[:n_samp]
+        return cond
 
-    return params_accept
+    return accept_reject(n_samp, n_col, sampler, condition)
 
