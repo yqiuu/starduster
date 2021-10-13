@@ -5,7 +5,18 @@ from torch.nn import functional as F
 from tqdm import tqdm
 
 
-class GaussianLikelihood(nn.Module):
+class ErrorFunction(nn.Module):
+    def __init__(self, param_names=None, bounds=None):
+        if param_names is None:
+            self.param_names = []
+            self.bounds = np.empty((0, 2), dtype=np.float64)
+        else:
+            self.param_names = param_names
+            self.bounds = bounds
+        super().__init__()
+
+
+class Gaussian(ErrorFunction):
     def __init__(self, y_obs, y_err, norm=True):
         super().__init__()
         self.register_buffer('y_obs', y_obs)
@@ -16,16 +27,31 @@ class GaussianLikelihood(nn.Module):
             self.norm = 0.
 
 
-    def forward(self, y):
-        delta = (y - self.y_obs)/self.y_err
+    def forward(self, *args):
+        delta = (args[0] - self.y_obs)/self.y_err
         return torch.sum(-.5*delta*delta, dim=-1) + self.norm
 
 
+class GaussianWithScatter(ErrorFunction):
+    def __init__(self, y_obs):
+        super().__init__(['sigma'], [0., 10.])
+        self.register_buffer('y_obs', y_obs)
+    
+
+    def forward(self, *args):
+        y_pred, sigma = args
+        delta = (y_pred - self.y_obs)/sigma
+        log_like = torch.sum(-.5*delta*delta, dim=-1) \
+            - self.y_obs.size(0)*torch.log(np.sqrt(2*np.pi)*sigma)
+        log_prior = -torch.log(sigma)
+        return log_like + log_prior
+
+
 class Posterior(nn.Module):
-    def __init__(self, sed_model, log_like, log_prior=None):
+    def __init__(self, sed_model, error_func, log_prior=None):
         super().__init__()
         self.sed_model = sed_model
-        self.log_like = log_like
+        self.error_func = error_func
         if log_prior is None:
             self.log_prior = lambda *args: 0.
         else:
@@ -36,9 +62,12 @@ class Posterior(nn.Module):
     def forward(self, params):
         if self._output_mode == 'numpy_grad':
             params = torch.tensor(params, dtype=torch.float32, requires_grad=True)
-
-        y_pred, is_out = self.sed_model(params, return_ph=True, check_bounds=True)
-        log_post = self._sign*(self.log_like(y_pred) + self.log_out*is_out)
+        
+        model_input_size = self.sed_model.input_size
+        p_model = params[:model_input_size]
+        p_error = params[model_input_size:]
+        y_pred, is_out = self.sed_model(p_model, return_ph=True, check_bounds=True)
+        log_post = self._sign*(self.error_func(y_pred, p_error) + self.log_out*is_out)
 
         if self._output_mode == 'numpy':
             return np.squeeze(log_post.detach().cpu().numpy())
@@ -58,6 +87,24 @@ class Posterior(nn.Module):
         else:
             self._sign = 1.
         self.log_out = log_out
+
+
+    @property
+    def input_size(self):
+        """Number of input parameters."""
+        return self.sed_model.adapter.input_size + len(self.error_func.param_names)
+
+
+    @property
+    def param_names(self):
+        """Parameter names"""
+        return self.sed_model.adapter.param_names + self.error_func.param_names
+
+
+    @property
+    def bounds(self):
+        """Bounds of input parameters."""
+        return np.vstack([self.sed_model.adapter.bounds, self.error_func.bounds])
 
 
 class OptimizerWrapper(nn.Module):
