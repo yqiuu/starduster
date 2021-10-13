@@ -7,13 +7,25 @@ from tqdm import tqdm
 
 class ErrorFunction(nn.Module):
     def __init__(self, param_names=None, bounds=None):
+        super().__init__()
+        self.n_params = len(param_names)
         if param_names is None:
             self.param_names = []
             self.bounds = np.empty((0, 2), dtype=np.float64)
         else:
             self.param_names = param_names
-            self.bounds = bounds
-        super().__init__()
+            self.bounds = np.atleast_2d(bounds)
+            lbounds, ubounds = torch.tensor(bounds, dtype=torch.float32).T
+            self.register_buffer('lbounds', lbounds)
+            self.register_buffer('ubounds', ubounds)
+
+
+    def check_bounds(self, params):
+        if self.n_params == 0:
+            return torch.full((params.size(0),), False)
+        else:
+            return torch.any(params <= self.lbounds, dim=-1) \
+                | torch.any(params >= self.ubounds, dim=-1)
 
 
 class Gaussian(ErrorFunction):
@@ -73,6 +85,7 @@ class Posterior(nn.Module):
         p_model = params[:, :model_input_size]
         p_error = params[:, model_input_size:]
         y_pred, is_out = self.sed_model(p_model, return_ph=True, check_bounds=True)
+        is_out |= self.error_func.check_bounds(p_error)
         log_post = self._sign*(self.error_func(y_pred, p_error) + self.log_out*is_out)
 
         if self._output_mode == 'numpy':
@@ -98,7 +111,7 @@ class Posterior(nn.Module):
     @property
     def input_size(self):
         """Number of input parameters."""
-        return self.sed_model.adapter.input_size + len(self.error_func.param_names)
+        return self.sed_model.adapter.input_size + self.error_func.n_params
 
 
     @property
