@@ -1,4 +1,4 @@
-from .utils import units
+from .utils import units, accept_reject
 from .selector import sample_from_selector
 
 import torch
@@ -14,13 +14,25 @@ class Analyzer:
 
     def sample(self, n_samp=1):
         adapter = self.sed_model.adapter
+        helper = adapter.helper
+        n_col = adapter.input_size
+        device = adapter.device
         lb, ub = torch.tensor(self.sed_model.adapter.bounds, dtype=torch.float32).T
-        sampler = lambda n_samp: (ub - lb)*torch.rand([n_samp, len(lb)]) + lb
-        adapter.selector_disk.cpu()
-        adapter.selector_bulge.cpu()
-        samps = sample_from_selector(n_samp, adapter.selector_disk, adapter.selector_bulge, sampler)
-        adapter.to(adapter.device)
-        return torch.squeeze(samps)
+        sampler = lambda n_samp: (ub - lb)*torch.rand([n_samp, n_col]) + lb
+
+        def condition(params):
+            params = adapter(params)[0]
+            cond = adapter.selector_disk.select(helper.get_item(params, 'curve_disk_inds')) \
+                & adapter.selector_bulge.select(helper.get_item(params, 'curve_bulge_inds'))
+            return cond
+
+        try:
+            adapter.cpu()
+            samps = torch.squeeze(accept_reject(n_samp, n_col, sampler, condition))
+        finally:
+            adapter.to(device)
+
+        return samps
 
 
     def compute_parameter_summary(self, params, log_scale=False, print_summary=False):
