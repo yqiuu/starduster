@@ -71,19 +71,21 @@ class Posterior(nn.Module):
 
 
     def forward(self, params):
+        model_input_size = self.sed_model.input_size
         if self._output_mode == 'numpy_grad':
             params = torch.tensor(
                 params, dtype=torch.float32, requires_grad=True
             )
+            p_model = params[:model_input_size]
+            p_error = params[model_input_size:]
         else:
             params = torch.as_tensor(
                 params, dtype=torch.float32, device=self.sed_model.adapter.device
             )
-        params = torch.atleast_2d(params)
+            params = torch.atleast_2d(params)
+            p_model = params[:, :model_input_size]
+            p_error = params[:, model_input_size:]
         
-        model_input_size = self.sed_model.input_size
-        p_model = params[:, :model_input_size]
-        p_error = params[:, model_input_size:]
         y_pred, is_out = self.sed_model(p_model, return_ph=True, check_bounds=True)
         is_out |= self.error_func.check_bounds(p_error)
         log_post = self._sign*(self.error_func(y_pred, p_error) + self.log_out*is_out)
