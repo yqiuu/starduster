@@ -6,24 +6,24 @@ import numpy as np
 
 
 class Analyzer:
-    def __init__(self, sed_model):
-        self.sed_model = sed_model
-        self.helper = sed_model.helper
-        self.lib_ssp = sed_model.adapter.lib_ssp
+    def __init__(self, posterior):
+        self.posterior = posterior
+        self.sed_model = posterior.sed_model
+        self.helper = self.sed_model.helper
+        self.lib_ssp = self.sed_model.adapter.lib_ssp
 
 
     def sample(self, n_samp=1):
         adapter = self.sed_model.adapter
-        helper = adapter.helper
-        n_col = adapter.input_size
         device = adapter.device
-        lb, ub = torch.tensor(self.sed_model.adapter.bounds, dtype=torch.float32).T
+        n_col = self.posterior.input_size
+        lb, ub = torch.tensor(self.posterior.bounds, dtype=torch.float32).T
         sampler = lambda n_samp: (ub - lb)*torch.rand([n_samp, n_col]) + lb
 
         def condition(params):
             params = adapter(params)[0]
-            cond = adapter.selector_disk.select(helper.get_item(params, 'curve_disk_inds')) \
-                & adapter.selector_bulge.select(helper.get_item(params, 'curve_bulge_inds'))
+            cond = adapter.selector_disk.select(self.helper.get_item(params, 'curve_disk_inds')) \
+                & adapter.selector_bulge.select(self.helper.get_item(params, 'curve_bulge_inds'))
             return cond
 
         try:
