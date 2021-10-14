@@ -16,7 +16,7 @@ class SSPLibrary:
         self.sfh_shape = l_ssp_raw.shape[1:] # (lam, met, age)
         self.n_met = len(lib_ssp['met'])
         self.n_tau = len(lib_ssp['tau'])
-        self.n_ssp = self.n_met*self.n_tau 
+        self.n_ssp = self.n_met*self.n_tau
         self.dim_age = 2
         self.dim_met = 1
         l_ssp_raw.resize(l_ssp_raw.shape[0], l_ssp_raw.shape[1]*l_ssp_raw.shape[2])
@@ -35,6 +35,14 @@ class SSPLibrary:
         self.d_tau = torch.diff(self.tau_edges)
 
 
+    @classmethod
+    def from_builtin(cls):
+        dirname = path.join(path.dirname(path.abspath(__file__)), "models")
+        fname = path.join(dirname, "FSPS_Chabrier_neb_compact.pickle")
+        lam_main = pickle.load(open(path.join(dirname, "lam_main.pickle"), "rb"))
+        return cls(fname, lam_main)
+
+
     def reshape_sfh(self, sfh):
         return torch.atleast_2d(sfh).reshape((-1, *self.sfh_shape))
 
@@ -45,11 +53,4 @@ class SSPLibrary:
 
     def sum_over_met(self, sfh):
         return self.reshape_sfh(sfh).sum(dim=self.dim_met)
-
-
-def load_builtin_library():
-    dirname = path.join(path.dirname(path.abspath(__file__)), "database")
-    fname = path.join(dirname, "FSPS_Chabrier_neb_compact.pickle")
-    lam_main = pickle.load(open(path.join(dirname, "lam_main.pickle"), "rb"))
-    return SSPLibrary(fname, lam_main)
 
