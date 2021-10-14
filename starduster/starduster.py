@@ -1,10 +1,12 @@
 from .utils import *
 from .parameter import *
+from .lib_ssp import SSPLibrary
 from .selector import Selector
 from .dust_attenuation import AttenuationCurve, DustAttenuation
 from .dust_emission import DustEmission
 
 import pickle
+from os import path
 
 import numpy as np
 from astropy import units as U
@@ -92,6 +94,21 @@ class MultiwavelengthSED(nn.Module):
         helper = dust_emission.helper
         dust_attenuation = DustAttenuation(helper, curve_disk, curve_bulge, lib_ssp.l_ssp)
         return cls(helper, lib_ssp, dust_attenuation, dust_emission, selector_disk, selector_bulge)
+
+
+    @classmethod
+    def from_builtin(cls):
+        lib_ssp = SSPLibrary.from_builtin()
+        dirname = path.join(path.dirname(path.abspath(__file__)), "models")
+        fname_da_disk = path.join(dirname, "curve_disk.pt")
+        fname_da_bulge = path.join(dirname, "curve_bulge.pt")
+        fname_de = path.join(dirname, "emission.pt")
+        fname_selector_disk = path.join(dirname, "selector_disk.pt")
+        fname_selector_bulge = path.join(dirname, "selector_bulge.pt")
+        return cls.from_checkpoint(
+            lib_ssp, fname_da_disk, fname_da_bulge, fname_de,
+            fname_selector_disk, fname_selector_bulge, map_location=None
+        )
 
 
     def forward(self, *args, return_ph=True, check_bounds=False):
