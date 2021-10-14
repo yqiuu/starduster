@@ -13,22 +13,24 @@ class Analyzer:
         self.lib_ssp = self.sed_model.adapter.lib_ssp
 
 
-    def sample(self, n_samp=1):
+    def sample(self, n_samp=1, sampler=None, max_iter=10000):
         adapter = self.sed_model.adapter
         device = adapter.device
         n_col = self.posterior.input_size
         lb, ub = torch.tensor(self.posterior.bounds, dtype=torch.float32).T
-        sampler = lambda n_samp: (ub - lb)*torch.rand([n_samp, n_col]) + lb
+        if sampler is None:
+            sampler = lambda n_samp: (ub - lb)*torch.rand([n_samp, n_col]) + lb
 
         def condition(params):
-            params = adapter(params)[0]
-            cond = adapter.selector_disk.select(self.helper.get_item(params, 'curve_disk_inds')) \
-                & adapter.selector_bulge.select(self.helper.get_item(params, 'curve_bulge_inds'))
+            cond = torch.all(params > lb, dim=-1) & torch.all(params < ub, dim=-1)
+            gp = adapter(params)[0]
+            cond &= adapter.selector_disk.select(self.helper.get_item(gp, 'curve_disk_inds')) \
+                & adapter.selector_bulge.select(self.helper.get_item(gp, 'curve_bulge_inds'))
             return cond
 
         try:
             adapter.cpu()
-            samps = torch.squeeze(accept_reject(n_samp, n_col, sampler, condition))
+            samps = torch.squeeze(accept_reject(n_samp, n_col, sampler, condition, max_iter))
         finally:
             adapter.to(device)
 

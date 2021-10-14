@@ -133,7 +133,7 @@ def interp_arr(x, xp, yp, left=None, right=None, period=None):
     return y_out
 
 
-def accept_reject(n_samp, n_col, sampler, condition, max_iter=1000):
+def accept_reject(n_samp, n_col, sampler, condition, max_iter=10000):
     samps_accept = torch.zeros([0, n_col])
     for it in range(max_iter):
         samps = sampler(n_samp)
@@ -141,6 +141,7 @@ def accept_reject(n_samp, n_col, sampler, condition, max_iter=1000):
         samps_accept = torch.vstack([samps_accept, samps])
         if len(samps_accept) >= n_samp:
             break
-    assert len(samps_accept) >= n_samp
+    if len(samps_accept) < n_samp:
+        raise ValueError("Maximum iteration is reached.")
     return samps_accept[:n_samp]
 

@@ -39,7 +39,9 @@ class Selector(nn.Module):
         return params_accept
 
 
-def sample_from_selector(n_samp, selector_disk=None, selector_bulge=None, sampler=None):
+def sample_from_selector(
+    n_samp, selector_disk=None, selector_bulge=None, sampler=None, max_iter=10000
+):
     if selector_disk is None and selector_bulge is None:
         raise ValueError("No selector is provided.")
     elif selector_disk is not None:
@@ -65,5 +67,5 @@ def sample_from_selector(n_samp, selector_disk=None, selector_bulge=None, sample
             cond &= selector_bulge.select(helper.get_item(params, 'curve_bulge_inds'))
         return cond
 
-    return accept_reject(n_samp, n_col, sampler, condition)
+    return accept_reject(n_samp, n_col, sampler, condition, max_iter)
 
