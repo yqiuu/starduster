@@ -59,14 +59,10 @@ class GaussianWithScatter(ErrorFunction):
 
 
 class Posterior(nn.Module):
-    def __init__(self, sed_model, error_func, log_prior=None):
+    def __init__(self, sed_model, error_func):
         super().__init__()
         self.sed_model = sed_model
         self.error_func = error_func
-        if log_prior is None:
-            self.log_prior = lambda *args: 0.
-        else:
-            self.log_prior = log_prior
         self.configure_output_mode()
 
 
