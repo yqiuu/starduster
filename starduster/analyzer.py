@@ -1,4 +1,5 @@
 from .utils import units, accept_reject
+from .starduster import MultiwavelengthSED
 from .selector import sample_from_selector
 
 import torch
@@ -6,9 +7,12 @@ import numpy as np
 
 
 class Analyzer:
-    def __init__(self, posterior):
-        self.posterior = posterior
-        self.sed_model = posterior.sed_model
+    def __init__(self, target):
+        if isinstance(target, MultiwavelengthSED):
+            self.sed_model = target
+        else:
+            self.posterior = target
+            self.sed_model = target.sed_model
         self.helper = self.sed_model.helper
         self.lib_ssp = self.sed_model.adapter.lib_ssp
 
@@ -16,8 +20,14 @@ class Analyzer:
     def sample(self, n_samp=1, sampler=None, max_iter=10000):
         adapter = self.sed_model.adapter
         device = adapter.device
-        n_col = self.posterior.input_size
-        lb, ub = torch.tensor(self.posterior.bounds, dtype=torch.float32).T
+
+        if hasattr(self, "posterior"):
+            n_col = self.posterior.input_size
+            bounds = self.posterior.bounds
+        else:
+            n_col = self.sed_model.input_size
+            bounds = self.sed_model.bounds
+        lb, ub = torch.tensor(bounds, dtype=torch.float32).T
         if sampler is None:
             sampler = lambda n_samp: (ub - lb)*torch.rand([n_samp, n_col]) + lb
 
