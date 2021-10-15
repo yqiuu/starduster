@@ -25,7 +25,6 @@ def partial_init(cls):
 class ParameterSet(nn.Module):
     def __init__(self, param_names, fixed_params, bounds_default, bounds, clip_bounds):
         super().__init__()
-        self.param_names = list(param_names)
         params_default, free_inds = self._derive_default_params(param_names, fixed_params)
         self._update_bounds(param_names, bounds_default, bounds)
         self.register_buffer('params_default', params_default)
@@ -35,8 +34,10 @@ class ParameterSet(nn.Module):
         else:
             self.input_size = len(free_inds)
         if self.input_size == 0:
+            self.param_names = np.empty(0, dtype=np.str)
             self.bounds = np.empty((0, 2), dtype=np.float)
         else:
+            self.param_names = np.asarray(list(param_names))[free_inds]
             bounds = np.asarray(bounds_default)[free_inds]
             lbounds, ubounds = torch.tensor(bounds, dtype=torch.float32).T
             self.register_buffer('lbounds', lbounds)
