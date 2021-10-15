@@ -42,7 +42,7 @@ class Analyzer:
         device = adapter.device
         try:
             adapter.cpu()
-            samps = torch.squeeze(accept_reject(n_samp, n_col, sampler, condition, max_iter))
+            samps = accept_reject(n_samp, n_col, sampler, condition, max_iter)
         finally:
             adapter.to(device)
 

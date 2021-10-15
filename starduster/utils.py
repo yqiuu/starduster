@@ -143,5 +143,8 @@ def accept_reject(n_samp, n_col, sampler, condition, max_iter=10000):
             break
     if len(samps_accept) < n_samp:
         raise ValueError("Maximum iteration is reached.")
-    return samps_accept[:n_samp]
+    if n_samp == 1:
+        return samps_accept[0]
+    else:
+        return samps_accept[:n_samp]
 
