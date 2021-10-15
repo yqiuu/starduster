@@ -18,7 +18,19 @@ from torch.nn import functional as F
 
 
 class Adapter(nn.Module):
-    """Apply different parametrisation to input parameters"""
+    """Apply different parametrisations to input parameters.
+
+    Parameters
+    ----------
+    helper : Helper
+        Helper of input parameters.
+    lib_ssp : SSPLibrary
+        A simple stellar population library.
+    selector_disk : Selector
+        Selector of the disk component.
+    selector_bulge : Selector
+        Selector of the bulge component.
+    """
     def __init__(self, helper, lib_ssp, selector_disk=None, selector_bulge=None):
         super().__init__()
         self.helper = helper
@@ -68,9 +80,11 @@ class Adapter(nn.Module):
         gp : ParameterSet
             Parametrisation of the galaxy parameters.
         sfh_disk : ParameterSet
-            Parametrisation of the disk component star formation history.
+            Parametrisation of the disk star formation history.
         sfh_bulge : ParameterSet
-            Parametrisation of the bulge component star formation history.
+            Parametrisation of the bulge star formation history.
+        flat_input : bool
+            If True, assume the input array is flat.
         """
         if gp is None:
             gp = GalaxyParameter()
@@ -119,8 +133,6 @@ class Detector(nn.Module):
 
     Parameters
     ----------
-    filters : array
-        An array of pyphot filter instances.
     lam : tensor [micrometer]
         Wavelength of the input fluxes.
     """
@@ -133,12 +145,7 @@ class Detector(nn.Module):
 
 
     def forward(self, l_target, return_ph):
-        """
-        Parameters
-        ----------
-        l_target : tensor [?]
-            Generalized flux density (nu*f_nu).
-        """
+        ## The given flux should be in L_sol.
         if return_ph:
             return self.apply_filters(l_target)
         else:
@@ -149,6 +156,7 @@ class Detector(nn.Module):
 
 
     def apply_filters(self, l_target):
+        ## The given flux should be in L_sol.
         fluxes = torch.trapz(l_target[:, None, :]*self.trans_filter, self.lam)*self.dist_factor
         if self.ab_mag:
             return -2.5*torch.log10(fluxes) + 8.9
@@ -168,7 +176,10 @@ class Detector(nn.Module):
         distmod : float
             Distance modulus.
         ab_mag : bool
-            If True, return AB magnitudes. If False, return flux densities.
+            If True, return AB magnitudes; otherwise return flux densities.
+        jansky : bool
+            If True, the unit of the output full spectra will be Jansky;
+            otherwise the unit will be L_sol.
         """
         lam = self.lam_base*(1 + z)
         self.register_buffer('lam', lam)
@@ -186,7 +197,8 @@ class Detector(nn.Module):
 
 
     def _set_transmission(self, ftr, lam):
-        """The given flux should be in L_sol."""
+        ## The given flux and wavelength should be in L_sol and micrometer
+        ## respectively.
         unit_lam = U.angstrom.to(U.micrometer)
         trans = np.interp(lam, ftr.wavelength*unit_lam, ftr.transmission, left=0., right=0.)
         trans = trans/np.trapz(trans/lam, lam)*self.unit_jansky
@@ -232,12 +244,11 @@ class MultiwavelengthSED(nn.Module):
 
     Outputs
     -------
-        If return_ph is true, return filter fluxes. If return_ph is false,
-        return full spectra.
+        If return_ph is true, return filter fluxes; otherwise return full
+        spectra.
     """
     def __init__(self,
-        helper, lib_ssp, dust_attenuation, dust_emission,
-        selector_disk=None, selector_bulge=None,
+        helper, lib_ssp, dust_attenuation, dust_emission, selector_disk=None, selector_bulge=None,
     ):
         super().__init__()
         self.helper = helper
@@ -284,6 +295,7 @@ class MultiwavelengthSED(nn.Module):
 
     @classmethod
     def from_builtin(cls):
+        """Initialise the built-in SED model."""
         lib_ssp = SSPLibrary.from_builtin()
         dirname = path.join(path.dirname(path.abspath(__file__)), "models")
         fname_da_disk = path.join(dirname, "curve_disk.pt")
