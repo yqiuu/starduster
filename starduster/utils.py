@@ -50,6 +50,17 @@ def merge_history(history1, history2):
 
 
 def load_model(fname, init, map_location=None):
+    """Load a model.
+
+    Parameters
+    ----------
+    fname : str
+        File name of the model.
+    init : object
+        Initialiser of the model.
+    map_location
+        A variable that is passed to torch.load.
+    """
     checkpoint = torch.load(fname, map_location=map_location)
     model = init(*checkpoint['params'])
     model.load_state_dict(checkpoint['model_state_dict'])
@@ -57,7 +68,7 @@ def load_model(fname, init, map_location=None):
 
 
 def search_inds(x, a, b):
-    "Find the indices of x that are closest to the given points."
+    """Find the indices of x that are closest to the given points."""
     return np.argmin(np.abs(x - a)), np.argmin(np.abs(x - b)) + 1
 
 
@@ -80,7 +91,7 @@ def reduction(y, x, eps=5e-4):
                 done_list.append([im, ib, blocks[im]])
         elif ib - ia > 2:
             im = (ia + ib)//2
-            I =  simps(y[ia], y[im], y[ib], x[ia], x[im], x[ib])
+            I = simps(y[ia], y[im], y[ib], x[ia], x[im], x[ib])
             if np.all(np.abs(I_fid - I) < eps):
                 done_list.append([ia, ib, I])
             else:
@@ -127,6 +138,9 @@ def simps(y0, y1, y2, x0, x1, x2):
 
 
 def interp_arr(x, xp, yp, left=None, right=None, period=None):
+    """Apply linear interpolation to an array of y data assuming the same x
+    data.
+    """
     y_out = np.zeros([len(yp), len(x)])
     for i_y, y in enumerate(yp):
         y_out[i_y] = np.interp(x, xp, yp[i_y], left, right, period)
