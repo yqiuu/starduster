@@ -19,7 +19,8 @@ class Analyzer:
 
     def sample(self, n_samp=1, sampler=None, max_iter=10000):
         adapter = self.sed_model.adapter
-        device = adapter.device
+        if not adapter.flat_input:
+            raise ValueError("Set flat_input to be true.")
 
         if hasattr(self, "posterior"):
             n_col = self.posterior.input_size
@@ -38,6 +39,7 @@ class Analyzer:
                 & adapter.selector_bulge.select(self.helper.get_item(gp, 'curve_bulge_inds'))
             return cond
 
+        device = adapter.device
         try:
             adapter.cpu()
             samps = torch.squeeze(accept_reject(n_samp, n_col, sampler, condition, max_iter))
