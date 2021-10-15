@@ -58,7 +58,6 @@ class MultiwavelengthSED(nn.Module):
         self.dust_emission = dust_emission
         self.adapter = Adapter(helper, lib_ssp, selector_disk, selector_bulge)
         self.detector = Detector(lib_ssp.lam)
-        self.return_ph = True
 
 
     @classmethod
@@ -107,11 +106,11 @@ class MultiwavelengthSED(nn.Module):
         fname_selector_bulge = path.join(dirname, "selector_bulge.pt")
         return cls.from_checkpoint(
             lib_ssp, fname_da_disk, fname_da_bulge, fname_de,
-            fname_selector_disk, fname_selector_bulge, map_location=None
+            fname_selector_disk, fname_selector_bulge, map_location=torch.device('cpu')
         )
 
 
-    def forward(self, *args, return_ph=True, check_bounds=False):
+    def forward(self, *args, return_ph=False, check_bounds=False):
         if check_bounds:
             gp, sfh_disk, sfh_bulge, is_out = self.adapter(*args, check_bounds=check_bounds)
         else:
