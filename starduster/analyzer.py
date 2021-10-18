@@ -49,9 +49,15 @@ class Analyzer:
         return samps
 
 
-    def compute_parameter_summary(self, params, log_scale=False, print_summary=False):
+    def recover(self, params):
         gp, sfh_disk, sfh_bulge = self.sed_model.adapter(params)
         gp_0 = self.helper.recover_all(gp, torch)
+        sfh_disk_0, sfh_bulge_0 = self.recover_sfh(gp_0, sfh_disk, sfh_bulge)
+        return gp_0, sfh_disk_0, sfh_bulge_0
+
+
+    def compute_parameter_summary(self, params, log_scale=False, print_summary=False):
+        gp_0, sfh_disk_0, sfh_bulge_0 = self.recover(params)
 
         theta = self.helper.get_item(gp_0, 'theta')
         r_disk = self.helper.get_item(gp_0, 'r_disk')
@@ -60,12 +66,12 @@ class Analyzer:
         l_norm = self.helper.get_item(gp_0, 'l_norm')
         b_to_t = self.helper.get_item(gp_0, 'b_to_t')
         m_dust = self.compute_m_dust(gp_0)
-        m_disk, m_bulge = self.compute_m_star(gp_0, sfh_disk, sfh_bulge, separate=True)
+        m_disk, m_bulge = self.compute_m_star(gp_0, sfh_disk_0, sfh_bulge_0, separate=True)
         m_star = m_disk + m_bulge
         # SFR over 10 Myr
-        sfr_10 = self.compute_sfr(gp_0, sfh_disk, sfh_bulge, time_scale=1e7, separate=False)
+        sfr_10 = self.compute_sfr(gp_0, sfh_disk_0, sfh_bulge_0, time_scale=1e7, separate=False)
         # SFR over 100 Myr
-        sfr_100 = self.compute_sfr(gp_0, sfh_disk, sfh_bulge, time_scale=1e8, separate=False)
+        sfr_100 = self.compute_sfr(gp_0, sfh_disk_0, sfh_bulge_0, time_scale=1e8, separate=False)
 
         names = [
             'theta', 'r_disk', 'r_bulge', 'r_dust', 'l_norm', 'b_to_t',
@@ -106,25 +112,23 @@ class Analyzer:
         return den_dust*(2*np.pi*r_dust*r_dust)
 
 
-    def compute_m_star(self, gp_0, sfh_disk, sfh_bulge, separate=False):
-        sfh_disk, sfh_bulge = self.convert_sfh(gp_0, sfh_disk, sfh_bulge)
-        m_disk = sfh_disk.sum(dim=(1, 2))
-        m_bulge = sfh_bulge.sum(dim=(1, 2))
+    def compute_m_star(self, gp_0, sfh_disk_0, sfh_bulge_0, separate=False):
+        m_disk = sfh_disk_0.sum(dim=(1, 2))
+        m_bulge = sfh_bulge_0.sum(dim=(1, 2))
         if separate:
             return m_disk, m_bulge
         else:
             return m_disk + m_bulge
 
 
-    def compute_sfr(self, gp_0, sfh_disk, sfh_bulge, time_scale=1e8, separate=False):
-        sfh_disk, sfh_bulge = self.convert_sfh(gp_0, sfh_disk, sfh_bulge)
-        sfh_disk = self.lib_ssp.sum_over_met(sfh_disk)
-        sfh_bulge = self.lib_ssp.sum_over_met(sfh_bulge)
+    def compute_sfr(self, gp_0, sfh_disk_0, sfh_bulge_0, time_scale=1e8, separate=False):
+        sfh_disk_0 = self.lib_ssp.sum_over_met(sfh_disk_0)
+        sfh_bulge_0 = self.lib_ssp.sum_over_met(sfh_bulge_0)
 
         d_tau = torch.cumsum(self.lib_ssp.d_tau, dim=0)
         idx = torch.argmin(torch.abs(d_tau - time_scale))
-        sfr_disk = sfh_disk[:, :idx+1].sum(dim=1)/d_tau[idx]
-        sfr_bulge = sfh_bulge[:, :idx+1].sum(dim=1)/d_tau[idx]
+        sfr_disk = sfh_disk_0[:, :idx+1].sum(dim=1)/d_tau[idx]
+        sfr_bulge = sfh_bulge_0[:, :idx+1].sum(dim=1)/d_tau[idx]
 
         if separate:
             return sfr_disk, sfr_bulge
@@ -132,30 +136,29 @@ class Analyzer:
             return sfr_disk + sfr_bulge
 
 
-    def compute_metallicity(self, gp_0, sfh_disk, sfh_bulge, separate=False):
+    def compute_metallicity(self, gp_0, sfh_disk_0, sfh_bulge_0, separate=False):
         def weighted_averge(arr, weights):
             return torch.sum(arr*weights, dim=-1)/torch.sum(weights, dim=-1)
 
-        sfh_disk, sfh_bulge = self.convert_sfh(gp_0, sfh_disk, sfh_bulge)
-        sfh_disk = self.lib_ssp.sum_over_age(sfh_disk)
-        sfh_bulge = self.lib_ssp.sum_over_age(sfh_bulge)
+        sfh_disk_0 = self.lib_ssp.sum_over_age(sfh_disk_0)
+        sfh_bulge_0 = self.lib_ssp.sum_over_age(sfh_bulge_0)
         if separate:
-            met_disk = weighted_averge(self.lib_ssp.met, sfh_disk)
-            met_bulge = weighted_averge(self.lib_ssp.met, sfh_bulge)
+            met_disk = weighted_averge(self.lib_ssp.met, sfh_disk_0)
+            met_bulge = weighted_averge(self.lib_ssp.met, sfh_bulge_0)
             return met_disk, met_bulge
         else:
-            return weighted_averge(self.lib_ssp.met, sfh_disk + sfh_bulge)
+            return weighted_averge(self.lib_ssp.met, sfh_disk_0 + sfh_bulge_0)
 
 
-    def convert_sfh(self, gp_0, sfh_disk, sfh_bulge):
-        convert = lambda sfh, l_norm: \
-            self.lib_ssp.reshape_sfh(sfh)/self.lib_ssp.norm*l_norm[:, None, None]
+    def recover_sfh(self, gp_0, sfh_disk, sfh_bulge):
+        def recover(sfh, l_norm):
+            return self.lib_ssp.reshape_sfh(sfh)/self.lib_ssp.norm*l_norm[:, None, None]
 
         l_norm = self.helper.get_item(gp_0, 'l_norm')
         b_to_t = self.helper.get_item(gp_0, 'b_to_t')
 
-        sfh_disk = convert(sfh_disk, l_norm*(1 - b_to_t))
-        sfh_bulge = convert(sfh_bulge, l_norm*b_to_t)
+        sfh_disk_0 = recover(sfh_disk, l_norm*(1 - b_to_t))
+        sfh_bulge_0 = recover(sfh_bulge, l_norm*b_to_t)
 
-        return sfh_disk, sfh_bulge
+        return sfh_disk_0, sfh_bulge_0
 
