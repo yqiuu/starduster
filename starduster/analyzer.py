@@ -132,6 +132,21 @@ class Analyzer:
             return sfr_disk + sfr_bulge
 
 
+    def compute_metallicity(self, gp_0, sfh_disk, sfh_bulge, separate=False):
+        def weighted_averge(arr, weights):
+            return torch.sum(arr*weights, dim=-1)/torch.sum(weights, dim=-1)
+
+        sfh_disk, sfh_bulge = self.convert_sfh(gp_0, sfh_disk, sfh_bulge)
+        sfh_disk = self.lib_ssp.sum_over_age(sfh_disk)
+        sfh_bulge = self.lib_ssp.sum_over_age(sfh_bulge)
+        if separate:
+            met_disk = weighted_averge(self.lib_ssp.met, sfh_disk)
+            met_bulge = weighted_averge(self.lib_ssp.met, sfh_bulge)
+            return met_disk, met_bulge
+        else:
+            return weighted_averge(self.lib_ssp.met, sfh_disk + sfh_bulge)
+
+
     def convert_sfh(self, gp_0, sfh_disk, sfh_bulge):
         convert = lambda sfh, l_norm: \
             self.lib_ssp.reshape_sfh(sfh)/self.lib_ssp.norm*l_norm[:, None, None]
