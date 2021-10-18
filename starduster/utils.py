@@ -30,8 +30,8 @@ units = namedtuple_from_dict(
         'm_disk': 'M_sol',
         'm_bulge': 'M_sol',
         'm_star': 'M_sol',
-        'sfr_10': 'M_sol/yr',
-        'sfr_100': 'M_sol/yr'
+        'sfr': 'M_sol/yr',
+        'met': 'Z_sol'
     }
 )
 

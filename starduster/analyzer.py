@@ -68,14 +68,16 @@ class Analyzer:
         m_dust = self.compute_m_dust(gp_0)
         m_disk, m_bulge = self.compute_m_star(gp_0, sfh_disk_0, sfh_bulge_0, separate=True)
         m_star = m_disk + m_bulge
-        # SFR over 10 Myr
-        sfr_10 = self.compute_sfr(gp_0, sfh_disk_0, sfh_bulge_0, time_scale=1e7, separate=False)
         # SFR over 100 Myr
-        sfr_100 = self.compute_sfr(gp_0, sfh_disk_0, sfh_bulge_0, time_scale=1e8, separate=False)
+        sfr_disk, sfr_bulge = \
+            self.compute_sfr(gp_0, sfh_disk_0, sfh_bulge_0, time_scale=1e8, separate=True)
+        #
+        met_disk, met_bulge = \
+            self.compute_met(gp_0, sfh_disk_0, sfh_bulge_0, separate=True)
 
         names = [
-            'theta', 'r_disk', 'r_bulge', 'r_dust', 'l_norm', 'b_to_t',
-            'm_dust', 'm_disk', 'm_bulge', 'm_star', 'sfr_10', 'sfr_100'
+            'theta', 'r_disk', 'r_bulge', 'r_dust', 'l_norm', 'b_to_t', 'm_dust', 'm_disk',
+            'm_bulge', 'm_star', 'sfr_disk', 'sfr_bulge', 'met_disk', 'met_bulge'
         ]
         variables = locals()
         summary = {}
@@ -90,11 +92,19 @@ class Analyzer:
 
         if print_summary:
             for key, val in summary.items():
-                msg = (key, val[0], getattr(units, key))
+                if 'sfr' in key:
+                    unit_name = 'sfr'
+                elif 'met' in key:
+                    unit_name = 'met'
+                else:
+                    unit_name = key
+                msg = (key, val[0], getattr(units, unit_name))
                 if key == 'theta':
                     print("{}: {:.1f} {}".format(*msg))
                 elif key == 'b_to_t':
                     print("{}: {:.2f} {}".format(*msg))
+                elif 'met' in key:
+                    print("{}: {:.3f} {}".format(*msg))
                 else:
                     if log_scale:
                         print("{}: {:.2f} {}".format(*msg))
@@ -136,7 +146,7 @@ class Analyzer:
             return sfr_disk + sfr_bulge
 
 
-    def compute_metallicity(self, gp_0, sfh_disk_0, sfh_bulge_0, separate=False):
+    def compute_met(self, gp_0, sfh_disk_0, sfh_bulge_0, separate=False):
         def mass_weighted_metallicity(met, sfh):
             met_mean = torch.sum(met*sfh, dim=-1)/torch.sum(sfh, dim=-1)
             return met_mean/constants.met_sol
