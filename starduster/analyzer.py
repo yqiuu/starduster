@@ -1,4 +1,4 @@
-from .utils import units, accept_reject
+from .utils import units, constants, accept_reject
 from .starduster import MultiwavelengthSED
 from .selector import sample_from_selector
 
@@ -137,17 +137,18 @@ class Analyzer:
 
 
     def compute_metallicity(self, gp_0, sfh_disk_0, sfh_bulge_0, separate=False):
-        def weighted_averge(arr, weights):
-            return torch.sum(arr*weights, dim=-1)/torch.sum(weights, dim=-1)
+        def mass_weighted_metallicity(met, sfh):
+            met_mean = torch.sum(met*sfh, dim=-1)/torch.sum(sfh, dim=-1)
+            return met_mean/constants.met_sol
 
         sfh_disk_0 = self.lib_ssp.sum_over_age(sfh_disk_0)
         sfh_bulge_0 = self.lib_ssp.sum_over_age(sfh_bulge_0)
         if separate:
-            met_disk = weighted_averge(self.lib_ssp.met, sfh_disk_0)
-            met_bulge = weighted_averge(self.lib_ssp.met, sfh_bulge_0)
+            met_disk = mass_weighted_metallicity(self.lib_ssp.met, sfh_disk_0)
+            met_bulge = mass_weighted_metallicity(self.lib_ssp.met, sfh_bulge_0)
             return met_disk, met_bulge
         else:
-            return weighted_averge(self.lib_ssp.met, sfh_disk_0 + sfh_bulge_0)
+            return mass_weighted_metallicity(self.lib_ssp.met, sfh_disk_0 + sfh_bulge_0)
 
 
     def recover_sfh(self, gp_0, sfh_disk, sfh_bulge):
