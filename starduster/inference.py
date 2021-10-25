@@ -8,11 +8,12 @@ from tqdm import tqdm
 class ErrorFunction(nn.Module):
     def __init__(self, param_names=None, bounds=None):
         super().__init__()
-        self.n_params = len(param_names)
         if param_names is None:
+            self.n_params = 0
             self.param_names = []
             self.bounds = np.empty((0, 2), dtype=np.float64)
         else:
+            self.n_params = len(param_names)
             self.param_names = param_names
             self.bounds = np.atleast_2d(bounds)
             lbounds, ubounds = torch.tensor(bounds, dtype=torch.float32).T
