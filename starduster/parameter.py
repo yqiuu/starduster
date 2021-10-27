@@ -7,6 +7,9 @@ from torch.nn import functional as F
 
 
 def partial_init(cls):
+    """Delay the initalisation of a class. The wrapped class should be
+    initialised using init, where an additional parameter can be passed.
+    """
     class Wrapper:
         def __init__(self, *args, **kwargs):
             self.args = args
@@ -23,6 +26,23 @@ def partial_init(cls):
 
 
 class ParameterSet(nn.Module):
+    """Base class for a parameter set.
+
+    Parameters
+    ----------
+    param_names : list
+        List of parameter names.
+    fixed_params : dict
+        A dictionary to specify fixed parameters. Use the name of the parameter
+        as the key.
+    bounds_default : array
+        An array of (min, max) to specify the default bounds of the parameters.
+    bounds : array
+        An array of (min, max) to specify the working bounds of the parameters.
+    clip_bounds : bool
+        If true, when an input value is beyond a bound, set it to be the same
+        with the bound.
+    """
     def __init__(self, param_names, fixed_params, bounds_default, bounds, clip_bounds):
         super().__init__()
         params_default, free_inds = self._derive_default_params(param_names, fixed_params)
@@ -105,6 +125,24 @@ class ParameterSet(nn.Module):
 
 @partial_init
 class GalaxyParameter(ParameterSet):
+    """A class to configure galaxy parameters.
+
+    Parameters
+    ----------
+    bounds : array
+        An array of (min, max) to specify the working bounds of the parameters.
+    clip_bounds : bool
+        If true, when an input value is beyond a bound, set it to be the same
+        with the bound.
+    fixed_params : dict
+        A dictionary to specify fixed parameters. Use the name of the parameter
+        as the key.
+
+    Reserved
+    --------
+    helper : Helper
+        Helper of input parameters. This parameter is passed internally.
+    """
     def __init__(self, helper, bounds=None, clip_bounds=True, **fixed_params):
         param_names = helper.header.keys()
         bounds_default = [(-1., 1.)]*len(helper.header)
@@ -125,6 +163,25 @@ class GalaxyParameter(ParameterSet):
 
 @partial_init
 class DiscreteSFH(ParameterSet):
+    """Discrete star formation history.
+
+    Parameters
+    ----------
+    bounds : array
+        An array of (min, max) to specify the working bounds of the parameters.
+    clip_bounds : bool
+        If true, when an input value is beyond a bound, set it to be the same
+        with the bound.
+    fixed_params : dict
+        A dictionary to specify fixed parameters. Use the name of the parameter
+        as the key.
+
+    Reserved
+    --------
+    lib_ssp : SSPLibrary
+        A simple stellar population library. This parameter is passed
+        internally.
+    """
     def __init__(self,
         lib_ssp, bounds=None, clip_bounds=True, simplex_transform=False, **fixed_params
     ):
@@ -143,6 +200,34 @@ class DiscreteSFH(ParameterSet):
 
 @partial_init
 class DiscreteSFR_InterpolatedMet(ParameterSet):
+    """Star formation history with discrete stellar age and interpolated
+    metallicity.
+
+    Parameters
+    ----------
+    sfr_bins : list
+        A sequence of index pairs to specifiy the star formation rate bins. If
+        not give, use the default bins.
+    uni_met : bool
+        If true, use the same metallicity for all star formation rate bins.
+    simplex_transform : bool
+        If true, apply a transform to the input which maps a unit hypercube
+        into a simplex.
+    bounds : array
+        An array of (min, max) to specify the working bounds of the parameters.
+    clip_bounds : bool
+        If true, when an input value is beyond a bound, set it to be the same
+        with the bound.
+    fixed_params : dict
+        A dictionary to specify fixed parameters. Use the name of the parameter
+        as the key.
+
+    Reserved
+    --------
+    lib_ssp : SSPLibrary
+        A simple stellar population library. This parameter is passed
+        internally.
+    """
     # TODO: Add functions to make sure that the SFH is normalised to one.
     # Handle the situation where there are only two SFR bins.
     def __init__(self,
@@ -196,6 +281,26 @@ class DiscreteSFR_InterpolatedMet(ParameterSet):
 
 @partial_init
 class InverseDistanceWeightedSFH(ParameterSet):
+    """Star formation history obtained using the invserse distance weighted
+    interpolation. Stellar age and metallicity are interpolated independently.
+
+    Parameters
+    ----------
+    bounds : array
+        An array of (min, max) to specify the working bounds of the parameters.
+    clip_bounds : bool
+        If true, when an input value is beyond a bound, set it to be the same
+        with the bound.
+    fixed_params : dict
+        A dictionary to specify fixed parameters. Use the name of the parameter
+        as the key.
+
+    Reserved
+    --------
+    lib_ssp : SSPLibrary
+        A simple stellar population library. This parameter is passed
+        internally.
+    """
     def __init__(self, lib_ssp, bounds=None, clip_bounds=True, **fixed_params):
         log_met = torch.log10(lib_ssp.met/constants.met_sol)[:, None]
         log_tau = torch.log10(lib_ssp.tau)[:, None]
