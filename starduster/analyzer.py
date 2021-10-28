@@ -49,11 +49,14 @@ class Analyzer:
         return samps
 
 
-    def recover(self, params):
+    def recover(self, params, recover_sfh=True):
         gp, sfh_disk, sfh_bulge = self.sed_model.adapter(params)
         gp_0 = self.helper.recover_all(gp, torch)
-        sfh_disk_0, sfh_bulge_0 = self.recover_sfh(gp_0, sfh_disk, sfh_bulge)
-        return gp_0, sfh_disk_0, sfh_bulge_0
+        if recover_sfh:
+            sfh_disk_0, sfh_bulge_0 = self.recover_sfh(gp_0, sfh_disk, sfh_bulge)
+            return gp_0, sfh_disk_0, sfh_bulge_0
+        else:
+            return gp_0, sfh_disk, sfh_bulge
 
 
     def compute_parameter_summary(self, params, log_scale=False, print_summary=False):
