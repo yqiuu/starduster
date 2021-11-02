@@ -309,7 +309,7 @@ class MultiwavelengthSED(nn.Module):
         )
 
 
-    def forward(self, *args, return_ph=False, check_bounds=False):
+    def forward(self, *args, return_ph=False, check_bounds=False, component='both'):
         if check_bounds:
             gp, sfh_disk, sfh_bulge, is_out = self.adapter(*args, check_bounds=check_bounds)
         else:
@@ -317,10 +317,17 @@ class MultiwavelengthSED(nn.Module):
 
         l_main = self.dust_attenuation(gp, sfh_disk, sfh_bulge)
         l_dust_slice, frac = self.dust_emission(gp, sfh_disk, sfh_bulge)
-        l_dust = self.helper.set_item(torch.zeros_like(l_main), 'slice_lam_de', l_dust_slice)
+        l_dust = frac*self.helper.set_item(torch.zeros_like(l_main), 'slice_lam_de', l_dust_slice)
         l_norm = self.helper.get_recover(gp, 'l_norm', torch)[:, None]
-        l_tot = l_norm*(l_main + frac*l_dust)
-        l_ret = torch.squeeze(self.detector(l_tot, return_ph))
+        if component == 'both':
+            l_ret = l_norm*(l_main + l_dust)
+        elif component == 'star':
+            l_ret = l_norm*l_main
+        elif component == 'dust':
+            l_ret = l_norm*l_dust
+        else:
+            raise ValueError(f"Unknow component: {component}.")
+        l_ret = torch.squeeze(self.detector(l_ret, return_ph))
 
         if check_bounds:
             return l_ret, is_out
