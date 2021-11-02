@@ -23,7 +23,7 @@ class SSPLibrary:
         l_ssp_raw = l_ssp_raw.T
         l_ssp_raw *= lam_ssp
         L_ssp = reduction(l_ssp_raw, log_lam_ssp, eps=eps)[0]
-        l_ssp = interp_arr(np.log(lam), log_lam_ssp, l_ssp_raw)
+        l_ssp = interp_arr(np.log(lam), log_lam_ssp, l_ssp_raw, right=0.)
         # Save attributes
         self.tau = torch.tensor(lib_ssp['tau'], dtype=torch.float32)
         self.met = torch.tensor(lib_ssp['met'], dtype=torch.float32)
