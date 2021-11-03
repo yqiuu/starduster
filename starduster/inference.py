@@ -22,11 +22,9 @@ class ErrorFunction(nn.Module):
 
 
     def check_bounds(self, params):
-        if self.n_params == 0:
-            return torch.full((params.size(0),), False)
-        else:
-            return torch.any(params <= self.lbounds, dim=-1) \
-                | torch.any(params >= self.ubounds, dim=-1)
+        assert self.n_params > 0
+        return torch.any(params <= self.lbounds, dim=-1) \
+            | torch.any(params >= self.ubounds, dim=-1)
 
 
 class Gaussian(ErrorFunction):
@@ -84,7 +82,8 @@ class Posterior(nn.Module):
             p_error = params[:, model_input_size:]
         
         y_pred, is_out = self.sed_model(p_model, return_ph=True, check_bounds=True)
-        is_out |= self.error_func.check_bounds(p_error)
+        if self.error_func.n_params > 0:
+            is_out |= self.error_func.check_bounds(p_error)
         log_post = self._sign*(self.error_func(y_pred, p_error) + self.log_out*is_out)
 
         if self._output_mode == 'numpy':
