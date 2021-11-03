@@ -117,6 +117,12 @@ class Analyzer:
         return summary
 
 
+    def compute_l_bol(self, params):
+        with torch.no_grad():
+            lum = self.sed_model(params, return_ph=False, return_lum=True)
+        return torch.trapz(lum, torch.log(self.sed_model.lam))
+
+
     def compute_m_dust(self, gp_0):
         r_disk = self.helper.get_item(gp_0, 'r_disk')
         r_dust_to_rd = self.helper.get_item(gp_0, 'r_dust_to_rd')
