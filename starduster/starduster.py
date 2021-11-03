@@ -144,15 +144,15 @@ class Detector(nn.Module):
         self._set_unit()
 
 
-    def forward(self, l_target, return_ph):
+    def forward(self, l_target, return_ph, return_lum):
         ## The given flux should be in L_sol.
         if return_ph:
             return self.apply_filters(l_target)
         else:
-            if self.jansky:
-                return l_target*self.lam*(self.unit_f_nu*self.dist_factor)
-            else:
+            if return_lum:
                 return l_target
+            else:
+                return l_target*self.lam*(self.unit_f_nu*self.dist_factor)
 
 
     def apply_filters(self, l_target):
@@ -164,7 +164,7 @@ class Detector(nn.Module):
             return fluxes
 
 
-    def configure(self, filters=None, z=0., distmod=0., ab_mag=True, jansky=True):
+    def configure(self, filters=None, z=0., distmod=0., ab_mag=True):
         """Configure the output mode.
 
         Parameters
@@ -177,9 +177,6 @@ class Detector(nn.Module):
             Distance modulus.
         ab_mag : bool
             If True, return AB magnitudes; otherwise return flux densities.
-        jansky : bool
-            If True, the unit of the output full spectra will be Jansky;
-            otherwise the unit will be L_sol.
         """
         lam = self.lam_base*(1 + z)
         self.register_buffer('lam', lam)
@@ -193,7 +190,6 @@ class Detector(nn.Module):
             self.register_buffer('lam_pivot', torch.tensor(lam_pivot, dtype=torch.float32))
         self.dist_factor = 10**(-.4*distmod)
         self.ab_mag = ab_mag
-        self.jansky = jansky
 
 
     def _set_transmission(self, ftr, lam):
@@ -241,6 +237,9 @@ class MultiwavelengthSED(nn.Module):
         Star forward history of the bulge component.
     return_ph : bool
         If True, apply filters to outputs.
+    return_lum : bool
+        If True, return flux density in a unit of Jansky; otherwise return
+        luminosity in a unit of L_sol.
 
     Outputs
     -------
@@ -309,7 +308,9 @@ class MultiwavelengthSED(nn.Module):
         )
 
 
-    def forward(self, *args, return_ph=False, check_bounds=False, component='both'):
+    def forward(self,
+        *args, return_ph=False, return_lum=False, check_bounds=False, component='both'
+    ):
         if check_bounds:
             gp, sfh_disk, sfh_bulge, is_out = self.adapter(*args, check_bounds=check_bounds)
         else:
@@ -327,7 +328,7 @@ class MultiwavelengthSED(nn.Module):
             l_ret = l_norm*l_dust
         else:
             raise ValueError(f"Unknow component: {component}.")
-        l_ret = torch.squeeze(self.detector(l_ret, return_ph))
+        l_ret = torch.squeeze(self.detector(l_ret, return_ph, return_lum))
 
         if check_bounds:
             return l_ret, is_out
