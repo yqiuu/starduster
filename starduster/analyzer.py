@@ -72,15 +72,17 @@ class Analyzer:
         m_disk, m_bulge = self.compute_m_star(gp_0, sfh_disk_0, sfh_bulge_0, separate=True)
         m_star = m_disk + m_bulge
         # SFR over 100 Myr
-        sfr_disk, sfr_bulge = \
-            self.compute_sfr(gp_0, sfh_disk_0, sfh_bulge_0, time_scale=1e8, separate=True)
-        #
-        met_disk, met_bulge = \
-            self.compute_met(gp_0, sfh_disk_0, sfh_bulge_0, separate=True)
+        sfr = self.compute_sfr(gp_0, sfh_disk_0, sfh_bulge_0, time_scale=1e8)
+        met = self.compute_met(gp_0, sfh_disk_0, sfh_bulge_0)
+        #sfr_disk, sfr_bulge = \
+        #    self.compute_sfr(gp_0, sfh_disk_0, sfh_bulge_0, time_scale=1e8, separate=True)
+        ##
+        #met_disk, met_bulge = \
+        #    self.compute_met(gp_0, sfh_disk_0, sfh_bulge_0, separate=True)
 
         names = [
-            'theta', 'r_disk', 'r_bulge', 'r_dust', 'l_norm', 'b_to_t', 'm_dust', 'm_disk',
-            'm_bulge', 'm_star', 'sfr_disk', 'sfr_bulge', 'met_disk', 'met_bulge'
+            'theta', 'r_disk', 'r_bulge', 'r_dust', 'l_norm', 'b_to_t',
+            'm_dust', 'm_disk', 'm_bulge', 'm_star', 'sfr', 'met'
         ]
         variables = locals()
         summary = {}
