@@ -40,7 +40,7 @@ class Adapter(nn.Module):
         if selector_bulge is not None:
             self.selector_bulge = selector_bulge
         self.register_buffer("_device", torch.tensor(0.), persistent=False)
-        self.configure()
+        self.configure(GalaxyParameter(), DiscreteSFH(), DiscreteSFH(), flat_input=False)
 
 
     def forward(self, *args, check_bounds=False):
@@ -72,7 +72,7 @@ class Adapter(nn.Module):
             return self.pset_gp(gp), self.pset_sfh_disk(sfh_disk), self.pset_sfh_bulge(sfh_bulge)
 
 
-    def configure(self, gp=None, sfh_disk=None, sfh_bulge=None, flat_input=False):
+    def configure(self, gp=None, sfh_disk=None, sfh_bulge=None, flat_input=None):
         """Configure the input mode.
 
         Parameters
@@ -86,16 +86,14 @@ class Adapter(nn.Module):
         flat_input : bool
             If True, assume the input array is flat.
         """
-        if gp is None:
-            gp = GalaxyParameter()
-        if sfh_disk is None:
-            sfh_disk = DiscreteSFH()
-        if sfh_bulge is None:
-            sfh_bulge = DiscreteSFH()
-        self.pset_gp = gp.init(self.helper)
-        self.pset_sfh_disk = sfh_disk.init(self.lib_ssp)
-        self.pset_sfh_bulge = sfh_bulge.init(self.lib_ssp)
-        self.flat_input = flat_input
+        if gp is not None:
+            self.pset_gp = gp.init(self.helper)
+        if sfh_disk is not None:
+            self.pset_sfh_disk = sfh_disk.init(self.lib_ssp)
+        if sfh_bulge is not None:
+            self.pset_sfh_bulge = sfh_bulge.init(self.lib_ssp)
+        if flat_input is not None:
+            self.flat_input = flat_input
         #
         pset_names = ['pset_gp', 'pset_sfh_disk', 'pset_sfh_bulge']
         free_shape = []
