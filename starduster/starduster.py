@@ -12,6 +12,7 @@ from functools import wraps
 import numpy as np
 from astropy import units as U
 from astropy import constants
+from sedpy.observate import Filter as sedpy_Filter
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -182,25 +183,29 @@ class Detector(nn.Module):
             trans_filter = np.zeros([len(filters), len(lam)])
             lam_pivot = np.zeros(len(filters))
             for i_f, ftr in enumerate(filters):
-                trans_filter[i_f] = self._set_transmission(ftr, lam)
-                lam_pivot[i_f] = self._set_lam_pivot(ftr)
+                trans_filter[i_f], lam_pivot[i_f] = self._preprocess_filter(ftr, lam)
             self.register_buffer('trans_filter', torch.tensor(trans_filter, dtype=torch.float32))
             self.register_buffer('lam_pivot', torch.tensor(lam_pivot, dtype=torch.float32))
         self.dist_factor = 10**(-.4*distmod)
         self.ab_mag = ab_mag
 
 
-    def _set_transmission(self, ftr, lam):
+    def _preprocess_filter(self, ftr, lam):
         ## The given flux and wavelength should be in L_sol and micrometer
         ## respectively.
         unit_lam = U.angstrom.to(U.micrometer)
-        trans = np.interp(lam, ftr.wavelength*unit_lam, ftr.transmission, left=0., right=0.)
+        if isinstance(ftr, sedpy_Filter):
+            lam_0 = ftr.wavelength*unit_lam
+            trans_0 = ftr.transmission
+        else:
+            lam_0, trans_0 = ftr
+            lam_0 = lam_0*unit_lam
+        # Compute transmission
+        trans = np.interp(lam, lam_0, trans_0, left=0., right=0.)
         trans = trans/np.trapz(trans/lam, lam)*self.unit_jansky
-        return trans
-
-
-    def _set_lam_pivot(self, ftr):
-        return ftr.wave_pivot*U.angstrom.to(U.micrometer)
+        # Compute pivot wavelength
+        lam_pivot = np.sqrt(np.trapz(lam_0*trans_0, lam_0)/np.trapz(trans_0/lam_0, lam_0))
+        return trans, lam_pivot
 
 
     def _set_unit(self):
