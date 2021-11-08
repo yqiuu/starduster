@@ -1,8 +1,7 @@
-from .modules import PlankianMixture, create_mlp, kld_trapz, kld_binary, reduce_loss
+from .modules import PlankianMixture, Transfer, create_mlp, kld_trapz, kld_binary, reduce_loss
 
 import torch
 from torch import nn
-from torch.nn import functional as F
 
 
 class AttenuationFractionSub(nn.Module):
@@ -83,22 +82,6 @@ class EmissionDistribution(nn.Module):
         y0 = y/torch.trapz(y, dx=self.dx)[:, None]
         y1 = y0 + self.transfer(z, y0)
         return y1
-
-
-class Transfer(nn.Module):
-    def __init__(self, input_size, output_size, dx):
-        super().__init__()
-        self.lin_neg = nn.Linear(input_size, output_size)
-        self.lin_pos = nn.Linear(input_size, output_size)
-        self.dx = dx
-
-
-    def forward(self, x, budget):
-        z_pos = F.softplus(self.lin_pos(x))
-        z_pos = z_pos/torch.trapz(z_pos, dx=self.dx)[:, None]
-        z_neg = torch.sigmoid(self.lin_neg(x))*budget
-        y = torch.trapz(z_neg, dx=self.dx)[:, None]*z_pos - z_neg
-        return y
 
 
 class LossDE(nn.Module):

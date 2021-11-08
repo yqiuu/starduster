@@ -5,8 +5,8 @@ from numpy import pi
 
 
 __all__ = [
-    "Monotonic", "Unimodal", "Smooth", "PlankianMixture", "LInfLoss",
-    "create_mlp", "kld_trapz", "kld_binary", "reduce_loss"
+    "Monotonic", "Unimodal", "Smooth", "PlankianMixture", "Transfer",
+    "LInfLoss", "create_mlp", "kld_trapz", "kld_binary", "reduce_loss"
 ]
 
 
@@ -68,6 +68,22 @@ class PlankianMixture(nn.Module):
         mu = torch.cumsum(torch.exp(self.lin_mu(x_in)), dim=1)
         w = F.softmax(self.lin_w(x_in), dim=1)
         return torch.sum(self.plank(mu)*w[:, :, None], dim=1)
+
+
+class Transfer(nn.Module):
+    def __init__(self, input_size, output_size, dx):
+        super().__init__()
+        self.lin_neg = nn.Linear(input_size, output_size)
+        self.lin_pos = nn.Linear(input_size, output_size)
+        self.dx = dx
+
+
+    def forward(self, x, budget):
+        z_pos = F.softplus(self.lin_pos(x))
+        z_pos = z_pos/torch.trapz(z_pos, dx=self.dx)[:, None]
+        z_neg = torch.sigmoid(self.lin_neg(x))*budget
+        y = torch.trapz(z_neg, dx=self.dx)[:, None]*z_pos - z_neg
+        return y
 
 
 class LInfLoss(nn.Module):
