@@ -157,6 +157,21 @@ class Analyzer:
             return sfr_disk + sfr_bulge
 
 
+    def compute_mass_weighted_age(self, gp_0, sfh_disk_0, sfh_bulge_0, separate=False):
+        def average(tau, sfh):
+            return torch.sum(tau*sfh, dim=-1)/torch.sum(sfh, dim=-1)
+        
+        tau = self.lib_ssp.tau
+        sfh_disk_0 = self.lib_ssp.sum_over_met(sfh_disk_0)
+        sfh_bulge_0 = self.lib_ssp.sum_over_met(sfh_bulge_0)
+        if separate:
+            tau_disk = average(tau, sfh_disk_0)
+            tau_bulge = average(tau, sfh_bulge_0)
+            return tau_disk, tau_bulge
+        else:
+            return average(tau, sfh_disk_0 + sfh_bulge_0)
+
+
     def compute_met(self, gp_0, sfh_disk_0, sfh_bulge_0, separate=False):
         def mass_weighted_metallicity(met, sfh):
             met_mean = torch.sum(met*sfh, dim=-1)/torch.sum(sfh, dim=-1)
