@@ -73,12 +73,12 @@ class Analyzer:
         m_star = m_disk + m_bulge
         # SFR over 100 Myr
         sfr = self.compute_sfr(gp_0, sfh_disk_0, sfh_bulge_0, time_scale=1e8)
-        met = self.compute_met(gp_0, sfh_disk_0, sfh_bulge_0)
+        met = self.compute_mass_weighted_met(gp_0, sfh_disk_0, sfh_bulge_0)
         #sfr_disk, sfr_bulge = \
         #    self.compute_sfr(gp_0, sfh_disk_0, sfh_bulge_0, time_scale=1e8, separate=True)
         ##
         #met_disk, met_bulge = \
-        #    self.compute_met(gp_0, sfh_disk_0, sfh_bulge_0, separate=True)
+        #    self.compute_mass_weighted_met(gp_0, sfh_disk_0, sfh_bulge_0, separate=True)
 
         names = [
             'theta', 'r_disk', 'r_bulge', 'r_dust', 'l_norm', 'b_to_t',
@@ -158,33 +158,33 @@ class Analyzer:
 
 
     def compute_mass_weighted_age(self, gp_0, sfh_disk_0, sfh_bulge_0, separate=False):
-        def average(tau, sfh):
+        def compute_average(tau, sfh):
             return torch.sum(tau*sfh, dim=-1)/torch.sum(sfh, dim=-1)
         
         tau = self.lib_ssp.tau
         sfh_disk_0 = self.lib_ssp.sum_over_met(sfh_disk_0)
         sfh_bulge_0 = self.lib_ssp.sum_over_met(sfh_bulge_0)
         if separate:
-            tau_disk = average(tau, sfh_disk_0)
-            tau_bulge = average(tau, sfh_bulge_0)
+            tau_disk = compute_average(tau, sfh_disk_0)
+            tau_bulge = compute_average(tau, sfh_bulge_0)
             return tau_disk, tau_bulge
         else:
-            return average(tau, sfh_disk_0 + sfh_bulge_0)
+            return compute_average(tau, sfh_disk_0 + sfh_bulge_0)
 
 
-    def compute_met(self, gp_0, sfh_disk_0, sfh_bulge_0, separate=False):
-        def mass_weighted_metallicity(met, sfh):
+    def compute_mass_weighted_met(self, gp_0, sfh_disk_0, sfh_bulge_0, separate=False):
+        def compute_average(met, sfh):
             met_mean = torch.sum(met*sfh, dim=-1)/torch.sum(sfh, dim=-1)
             return met_mean/constants.met_sol
 
         sfh_disk_0 = self.lib_ssp.sum_over_age(sfh_disk_0)
         sfh_bulge_0 = self.lib_ssp.sum_over_age(sfh_bulge_0)
         if separate:
-            met_disk = mass_weighted_metallicity(self.lib_ssp.met, sfh_disk_0)
-            met_bulge = mass_weighted_metallicity(self.lib_ssp.met, sfh_bulge_0)
+            met_disk = compute_average(self.lib_ssp.met, sfh_disk_0)
+            met_bulge = compute_average(self.lib_ssp.met, sfh_bulge_0)
             return met_disk, met_bulge
         else:
-            return mass_weighted_metallicity(self.lib_ssp.met, sfh_disk_0 + sfh_bulge_0)
+            return compute_average(self.lib_ssp.met, sfh_disk_0 + sfh_bulge_0)
 
 
     def recover_sfh(self, gp_0, sfh_disk, sfh_bulge):
