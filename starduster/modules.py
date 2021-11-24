@@ -58,7 +58,7 @@ class PlankianMixture(nn.Module):
         self.register_buffer('x_inv', 1./x)
 
 
-    def plank(self, mu):
+    def planck(self, mu):
         y = self.x_inv*mu[:, :, None]
         f = torch.exp(-y)
         return self.const*y**4*f/(1 - f)
@@ -67,7 +67,7 @@ class PlankianMixture(nn.Module):
     def forward(self, x_in):
         mu = torch.cumsum(torch.exp(self.lin_mu(x_in)), dim=1)
         w = F.softmax(self.lin_w(x_in), dim=1)
-        return torch.sum(self.plank(mu)*w[:, :, None], dim=1)
+        return torch.sum(self.planck(mu)*w[:, :, None], dim=1)
 
 
 class Transfer(nn.Module):
