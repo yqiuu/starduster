@@ -167,6 +167,9 @@ class DiscreteSFH(ParameterSet):
 
     Parameters
     ----------
+    simplex_transform : bool
+        If true, apply a transform to the input which maps a unit hypercube
+        into a simplex.
     bounds : array
         An array of (min, max) to specify the working bounds of the parameters.
     clip_bounds : bool
@@ -183,7 +186,7 @@ class DiscreteSFH(ParameterSet):
         internally.
     """
     def __init__(self,
-        lib_ssp, bounds=None, clip_bounds=True, simplex_transform=False, **fixed_params
+        lib_ssp, simplex_transform=False, bounds=None, clip_bounds=True, **fixed_params
     ):
         self.simplex_transform = simplex_transform
         param_names = [f'sfr_{i_sfr}' for i_sfr in range(lib_ssp.n_ssp)]
