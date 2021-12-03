@@ -49,18 +49,8 @@ class Analyzer:
         return samps
 
 
-    def recover(self, params, recover_sfh=True):
-        gp, sfh_disk, sfh_bulge = self.sed_model.adapter(params)
-        gp_0 = self.helper.recover_all(gp, torch)
-        if recover_sfh:
-            sfh_disk_0, sfh_bulge_0 = self.recover_sfh(gp_0, sfh_disk, sfh_bulge)
-            return gp_0, sfh_disk_0, sfh_bulge_0
-        else:
-            return gp_0, sfh_disk, sfh_bulge
-
-
     def compute_parameter_summary(self, params, log_scale=False, print_summary=False):
-        gp_0, sfh_disk_0, sfh_bulge_0 = self.recover(params)
+        gp_0, sfh_disk_0, sfh_bulge_0 = self.recover_params(params)
 
         theta = self.helper.get_item(gp_0, 'theta')
         r_disk = self.helper.get_item(gp_0, 'r_disk')
@@ -185,6 +175,16 @@ class Analyzer:
             return met_disk, met_bulge
         else:
             return compute_average(self.lib_ssp.met, sfh_disk_0 + sfh_bulge_0)
+
+
+    def recover_params(self, params, recover_sfh=True):
+        gp, sfh_disk, sfh_bulge = self.sed_model.adapter(params)
+        gp_0 = self.helper.recover_all(gp, torch)
+        if recover_sfh:
+            sfh_disk_0, sfh_bulge_0 = self.recover_sfh(gp_0, sfh_disk, sfh_bulge)
+            return gp_0, sfh_disk_0, sfh_bulge_0
+        else:
+            return gp_0, sfh_disk, sfh_bulge
 
 
     def recover_sfh(self, gp_0, sfh_disk, sfh_bulge):
