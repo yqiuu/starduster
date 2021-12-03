@@ -125,10 +125,20 @@ class GalaxyParameter(ParameterSet):
 
 @partial_init
 class DiscreteSFH(ParameterSet):
-    def __init__(self, lib_ssp, bounds=None, clip_bounds=True, **fixed_params):
+    def __init__(self,
+        lib_ssp, bounds=None, clip_bounds=True, simplex_transform=False, **fixed_params
+    ):
+        self.simplex_transform = simplex_transform
         param_names = [f'sfr_{i_sfr}' for i_sfr in range(lib_ssp.n_ssp)]
         bounds_default = [(0., 1.)]*lib_ssp.n_ssp
         super().__init__(param_names, fixed_params, bounds_default, bounds, clip_bounds)
+
+
+    def derive_full_params(self, params):
+        if self.simplex_transform:
+            return simplex_transform(params)
+        else:
+            return params
 
 
 @partial_init
@@ -163,10 +173,6 @@ class DiscreteSFR_InterpolatedMet(ParameterSet):
 
 
     def derive_full_params(self, params):
-        def simplex_transform(x):
-            x = -torch.log(1 - x)
-            return x/x.sum(dim=1, keepdim=True)
-
         sfr = params[:, :self.n_sfr]
         log_met = params[:, self.n_sfr:]
         if self.simplex_transform:
@@ -211,4 +217,9 @@ class InverseDistanceWeightedSFH(ParameterSet):
         inv = 1./(torch.abs(log_tau - self.log_tau)**(10**s_tau) + eps)
         w_tau = (inv/inv.sum(dim=0)).T
         return torch.flatten(w_met[:, :, None]*w_tau[:, None, :], start_dim=1)
+
+
+def simplex_transform(x):
+    x = -torch.log(1 - x)
+    return x/x.sum(dim=-1, keepdim=True)
 
