@@ -52,25 +52,24 @@ class Adapter(nn.Module):
             gp, sfh_disk, sfh_bulge = args
 
         if check_bounds:
+            # Check if all input parameters are within the bounds
             is_out = torch.full((gp.size(0),), False, device=self.device)
             for val, pset in zip(
                 [gp, sfh_disk, sfh_bulge],
                 [self.pset_gp, self.pset_sfh_disk, self.pset_sfh_bulge]
             ):
                 is_out |= pset.check_bounds(val)
-
-            gp = self.pset_gp(gp)
-            sfh_disk = self.pset_sfh_disk(sfh_disk)
-            sfh_bulge = self.pset_sfh_bulge(sfh_bulge)
-
-            ## Assume helper of selector_disk and selector_bulge are the same
+            # Apply the parameterisations
+            gp, sfh_disk, sfh_bulge = self._apply_pset(gp, sfh_disk, sfh_bulge)
+            # Check if all parameters are in the effective region
+            # -Assume helper of selector_disk and selector_bulge are the same
             helper = self.selector_disk.helper
             is_out |= ~self.selector_disk.select(helper.get_item(gp, 'curve_disk_inds'))
             is_out |= ~self.selector_bulge.select(helper.get_item(gp, 'curve_bulge_inds'))
-
+            #
             return gp, sfh_disk, sfh_bulge, is_out
         else:
-            return self.pset_gp(gp), self.pset_sfh_disk(sfh_disk), self.pset_sfh_bulge(sfh_bulge)
+            return self._apply_pset(gp, sfh_disk, sfh_bulge)
 
 
     def configure(self, gp=None, sfh_disk=None, sfh_bulge=None, flat_input=None):
@@ -125,6 +124,19 @@ class Adapter(nn.Module):
     @property
     def device(self):
         return self._device.device
+
+
+    def _apply_pset(self, gp, sfh_disk, sfh_bulge):
+        gp = self.pset_gp(gp)
+        sfh_disk = self.pset_sfh_disk(sfh_disk)
+        sfh_bulge = self.pset_sfh_bulge(sfh_bulge)
+
+        msg = "Star formation history must be normalised to one."
+        assert torch.allclose(sfh_disk.sum(dim=-1), torch.tensor(1.)), msg
+        assert torch.allclose(sfh_bulge.sum(dim=-1), torch.tensor(1.)), msg
+
+        return gp, sfh_disk, sfh_bulge
+
 
 
 class Detector(nn.Module):
