@@ -6,6 +6,14 @@ from tqdm import tqdm
 
 
 class ErrorFunction(nn.Module):
+    """Base class for error functions.
+
+    param_names : list
+        Free parameter names of the error functions. If None, assume no free
+        parameter.
+    bounds : array
+        An array of (min, max) to specify the bounds of the free parameters.
+    """
     def __init__(self, param_names=None, bounds=None):
         super().__init__()
         if param_names is None:
@@ -22,12 +30,42 @@ class ErrorFunction(nn.Module):
 
 
     def check_bounds(self, params):
+        """Check if any parameters are beyond the bounds.
+
+        Returns
+        -------
+        bool
+            True if any parameters are beyond the bounds.
+        """
         assert self.n_params > 0
         return torch.any(params <= self.lbounds, dim=-1) \
             | torch.any(params >= self.ubounds, dim=-1)
 
 
 class Gaussian(ErrorFunction):
+    """Gaussian error function.
+
+    Return the logarithmic Gaussian errors.
+
+    Parameters
+    ----------
+    y_obs : tensor
+        Mean of the normal distribution.
+    y_err : tensor
+        Standard deviation of the normal distribution.
+    norm : bool
+        If False, only return the value in the exponent; otherwise add the
+        normalisation factor to the output.
+
+    Inputs
+    ------
+    y_pred : tensor
+        (N, M), where M is the number of the observational data.
+
+    Outputs
+    -------
+        (N,).
+    """
     def __init__(self, y_obs, y_err, norm=True):
         super().__init__()
         self.register_buffer('y_obs', y_obs)
@@ -44,10 +82,31 @@ class Gaussian(ErrorFunction):
 
 
 class GaussianWithScatter(ErrorFunction):
+    """Gaussian error function with a single intrinsic scatter.
+
+    Return the logarithmic Gaussian errors.
+
+    Parameters
+    ----------
+    y_obs : tensor
+        Mean of the normal distribution.
+    bounds : tuple
+        An tuple of (min, max) to specify the bounds of the intrinsic scatter.
+        The bounds should be in base 10 logarithmic scale.
+
+    Inputs
+    ------
+    y_pred : tensor
+        (N, M), where M is the number of the observational data.
+
+    Outputs
+    -------
+        (N,).
+    """
     def __init__(self, y_obs, bounds=(-2., 0.)):
         super().__init__(['sigma'], bounds)
         self.register_buffer('y_obs', y_obs)
-    
+
 
     def forward(self, *args):
         y_pred, log_sigma = args
@@ -58,6 +117,16 @@ class GaussianWithScatter(ErrorFunction):
 
 
 class Posterior(nn.Module):
+    """A posterior distribution that can be passed to various optimisation and
+    sampling tools.
+
+    Parameters
+    ----------
+    sed_model : MultiwavelengthSED
+        SED model.
+    error_func : ErrorFunction
+        Error function.
+    """
     def __init__(self, sed_model, error_func):
         super().__init__()
         self.sed_model = sed_model
@@ -80,7 +149,7 @@ class Posterior(nn.Module):
             params = torch.atleast_2d(params)
             p_model = params[:, :model_input_size]
             p_error = params[:, model_input_size:]
-        
+
         y_pred, is_out = self.sed_model(p_model, return_ph=True, check_bounds=True)
         if self.error_func.n_params > 0:
             is_out |= self.error_func.check_bounds(p_error)
@@ -95,6 +164,22 @@ class Posterior(nn.Module):
 
 
     def configure_output_mode(self, output_mode='torch', negative=False, log_out=-1e15):
+        """Configure the output mode.
+
+        Parameters
+        ----------
+        output_mode : string {'torch', 'numpy', 'numpy_grad'}
+            'torch' : Return a PyTorch tensor.
+            'numpy' : Return a numpy array.
+            'numpy_grad' : Return a tuple with the second element be the
+            gradient.
+
+        negative : bool
+            If True, multiply the output by -1.
+        log_out : float
+            Add this value to the output if the input is beyond the effective
+            region.
+        """
         if output_mode in ['torch', 'numpy', 'numpy_grad']:
             self._output_mode = output_mode
         else:
@@ -125,6 +210,20 @@ class Posterior(nn.Module):
 
 
 class OptimizerWrapper(nn.Module):
+    """A wrapper that allows a posterior distribution to be minimised by
+    PyTorch optimizers.
+
+    Parameters
+    ----------
+    log_post : Posterior
+        Target posterior distribution.
+    x0 : tensor
+        Initial parameters.
+
+    Output
+    ------
+        Scalar.
+    """
     def __init__(self, log_post, x0):
         super().__init__()
         self.params = nn.Parameter(x0)
@@ -137,6 +236,31 @@ class OptimizerWrapper(nn.Module):
 
 
 def optimize(log_post, cls_opt, x0=None, n_step=1000, lr=1e-2, progress_bar=True, **kwargs_opt):
+    """Optimise a posterior distribution using a Pytorch optimiser.
+
+    Parameters
+    ----------
+    log_post : Posterior
+        Target posterior distribution.
+    cls_opt : torch.optim.Optimizer
+        PyTorch optimiser class.
+    x0 : tensor
+        Initial parameters.
+    n_step : int
+        Number of the optimisation steps.
+    lr : float
+        Learning rate.
+    progress_bar : bool
+        If True, show a progress bar.
+    **kwargs_opt
+        Keyword arguments used to initalise the optimiser.
+
+
+    Returns
+    -------
+    tensor
+        Best-fitting parameters.
+    """
     model = OptimizerWrapper(log_post, x0)
     opt = cls_opt(model.parameters(), lr=lr, **kwargs_opt)
     with tqdm(total=n_step, disable=(not progress_bar)) as pbar:
