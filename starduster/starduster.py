@@ -229,6 +229,20 @@ class Detector(nn.Module):
 class MultiwavelengthSED(nn.Module):
     """Primary module to compute multiwavelength SEDs.
 
+    **Input**
+
+    | gp (tensor) : Galaxy parameters.
+    | sfh_disk (tensor) : Star formation history of the disk component.
+    | sfh_bulge (tensor) : Star forward history of the bulge component.
+    | return_ph (bool) : If True, apply filters to outputs.
+    | return_lum (bool) : If True, return flux density in a unit of Jansky;
+      otherwise return luminosity in a unit of L_sol.
+
+    **Output**
+
+    | (tensor) : If return_ph is true, return filter fluxes; otherwise return
+      full spectra.
+
     Parameters
     ----------
     helper : Helper
@@ -241,25 +255,6 @@ class MultiwavelengthSED(nn.Module):
         Selector of the disk component.
     selector_bulge : Selector
         Selector of the bulge component.
-
-    Inputs
-    ------
-    gp : tensor
-        Galaxy parameters.
-    sfh_disk : tensor
-        Star formation history of the disk component.
-    sfh_bulge : tensor
-        Star forward history of the bulge component.
-    return_ph : bool
-        If True, apply filters to outputs.
-    return_lum : bool
-        If True, return flux density in a unit of Jansky; otherwise return
-        luminosity in a unit of L_sol.
-
-    Outputs
-    -------
-        If return_ph is true, return filter fluxes; otherwise return full
-        spectra.
     """
     def __init__(self,
         helper, lib_ssp, dust_attenuation, dust_emission, selector_disk=None, selector_bulge=None,
