@@ -180,8 +180,12 @@ class Detector(nn.Module):
 
         Parameters
         ----------
-        filters : sedpy.observate.Filter
-            Output filters.
+        filters : iterable
+            Filters to compute AB magnitudes. Each element can either be a
+            ``sedpy.observate.Filter`` or a 2D array. If the element is a 2D
+            array. The first and second rows should be wavelength and
+            transmission respectively. The wavelength should be in a unit of
+            angstrom.
         z : float
             Redshift.
         distmod : float
