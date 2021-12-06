@@ -8,7 +8,7 @@ Starduster
 Starduster provides a deep learning model to emulate dust radiative transfer
 simulations, which significantly accelerates the computation of dust
 attenuation and emission. Starduster contains two specific generative models,
-which explicitly takes into accout the features of the dust attenuation curves
+which explicitly take into accout the features of the dust attenuation curves
 and dust emission spectra. Both generative models should be trained by a set of
 characteristic outputs of a radiative transfer simulation. The obtained neural
 networks can produce realistic galaxy spectral energy distributions that
