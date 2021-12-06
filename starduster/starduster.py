@@ -84,7 +84,7 @@ class Adapter(nn.Module):
         sfh_bulge : ParameterSet
             Parametrisation of the bulge star formation history.
         flat_input : bool
-            If True, assume the input array is flat.
+            If ``True``, assume the input array is flat.
         """
         if gp is not None:
             self.pset_gp = gp.init(self.helper)
@@ -187,7 +187,7 @@ class Detector(nn.Module):
         distmod : float
             Distance modulus.
         ab_mag : bool
-            If True, return AB magnitudes; otherwise return flux densities.
+            If ``True``, return AB magnitudes; otherwise return flux densities.
         """
         lam = self.lam_base*(1 + z)
         self.register_buffer('lam', lam)
@@ -227,21 +227,7 @@ class Detector(nn.Module):
 
 
 class MultiwavelengthSED(nn.Module):
-    """Primary module to compute multiwavelength SEDs.
-
-    **Input**
-
-    | gp (tensor) : Galaxy parameters.
-    | sfh_disk (tensor) : Star formation history of the disk component.
-    | sfh_bulge (tensor) : Star forward history of the bulge component.
-    | return_ph (bool) : If True, apply filters to outputs.
-    | return_lum (bool) : If True, return flux density in a unit of Jansky;
-      otherwise return luminosity in a unit of L_sol.
-
-    **Output**
-
-    | (tensor) : If return_ph is true, return filter fluxes; otherwise return
-      full spectra.
+    """High-level API for computing multiwavelength SEDs.
 
     Parameters
     ----------
@@ -321,6 +307,38 @@ class MultiwavelengthSED(nn.Module):
     def forward(self,
         *args, return_ph=False, return_lum=False, check_bounds=False, component='both'
     ):
+        """Compute multi-wavelength SEDs.
+
+        Parameters
+        ----------
+        gp : tensor
+            Galaxy parameters.
+        sfh_disk : tensor
+            Star formation history of the disk component.
+        sfh_bulge : tensor
+            Star forward history of the bulge component.
+        return_ph : bool
+            If ``True``, apply filters to outputs.
+        return_lum : bool
+            If ``True``, return flux density in a unit of Jansky; otherwise
+            return luminosity in a unit of L_sol.
+        check_bounds : bool
+            If ``True``, return an additional tensor indicating whether the
+            input parameters are beyond the effective region.
+        component : str {'both', 'star', 'dust'}
+            'both' : Return SEDs including both stellar and dust emissions.
+            'star' : Return stellar SEDs only.
+            'dust' : Return dust SEDs only.
+
+        Returns
+        -------
+        l_ret : tensor
+            Multi-wavelength SEDs. The actual values depends on ``return_ph``,
+            ``return_lum`` and ``component``.
+        is_out : tensor
+            A boolean array of where the input parameters are beyond the
+            effective region.
+        """
         if check_bounds:
             gp, sfh_disk, sfh_bulge, is_out = self.adapter(*args, check_bounds=check_bounds)
         else:
