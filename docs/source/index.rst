@@ -23,6 +23,7 @@ PyTorch throughout the applications.
    :caption: User guide:
 
    starduster
-
+   posterior
+   analyzer
 
 
