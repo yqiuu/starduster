@@ -305,7 +305,7 @@ class MultiwavelengthSED(nn.Module):
 
 
     def forward(self,
-        *args, return_ph=False, return_lum=False, check_bounds=False, component='both'
+        *args, return_ph=False, return_lum=False, component='both', check_bounds=False,
     ):
         """Compute multi-wavelength SEDs.
 
@@ -322,13 +322,13 @@ class MultiwavelengthSED(nn.Module):
         return_lum : bool
             If ``True``, return flux density in a unit of Jansky; otherwise
             return luminosity in a unit of L_sol.
-        check_bounds : bool
-            If ``True``, return an additional tensor indicating whether the
-            input parameters are beyond the effective region.
         component : str {'both', 'star', 'dust'}
             'both' : Return SEDs including both stellar and dust emissions.
             'star' : Return stellar SEDs only.
             'dust' : Return dust SEDs only.
+        check_bounds : bool
+            If ``True``, return an additional tensor indicating whether the
+            input parameters are beyond the effective region.
 
         Returns
         -------
