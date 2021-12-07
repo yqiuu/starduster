@@ -1,5 +1,5 @@
 from .utils import units, constants, accept_reject
-from .starduster import MultiwavelengthSED
+from .sed_model import MultiwavelengthSED
 from .selector import sample_from_selector
 
 import torch
