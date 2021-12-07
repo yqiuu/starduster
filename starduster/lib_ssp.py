@@ -54,3 +54,25 @@ class SSPLibrary:
     def sum_over_met(self, sfh):
         return self.reshape_sfh(sfh).sum(dim=self.dim_met)
 
+    
+    def mass_to_light(self, sfh_mass):
+        """Transform mass to light.
+
+        Parameters
+        ----------
+        sfh_mass : tensor, (N, D_met, D_age), [M_sol]
+            Star formation history.
+
+        Returns
+        -------
+        sfh_frac : tensor, (N, D_met, D_age)
+            Fractional luminosity.
+        l_norm : tensor, (N,), [L_sol]
+            Intrinsic bolometic luminosity.
+        """
+        sfh_light = sfh_mass*self.norm
+        l_norm = sfh_light.sum(dim=(1, 2))
+        sfh_frac = sfh_light/l_norm[:, None, None]
+        sfh_frac[l_norm == 0.] = 1./(sfh_frac.size(1)*sfh_frac.size(2))
+        return sfh_frac, l_norm
+
