@@ -35,6 +35,7 @@ class MultiwavelengthSED(nn.Module):
     ):
         super().__init__()
         self.helper = helper
+        self.lib_ssp = lib_ssp
         self.dust_attenuation = dust_attenuation
         self.dust_emission = dust_emission
         self.adapter = Adapter(helper, lib_ssp, selector_disk, selector_bulge)

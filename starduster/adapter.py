@@ -1,5 +1,7 @@
 from .utils import constants
 
+from bisect import bisect_left
+
 import numpy as np
 import torch
 from torch import nn
@@ -445,6 +447,93 @@ class InverseDistanceWeightedSFH(ParameterSet):
         inv = 1./(torch.abs(log_tau - self.log_tau)**(10**s_tau) + eps)
         w_tau = (inv/inv.sum(dim=0)).T
         return torch.flatten(w_met[:, :, None]*w_tau[:, None, :], start_dim=1)
+
+
+class SemiAnalyticConventer:
+    def __init__(self, helper, lib_ssp, timesteps):
+        self.helper = helper
+        self.lib_ssp = lib_ssp
+        self._tau_matrix = self._create_tau_matrix(timesteps)
+        
+
+    def __call__(self,
+        theta, den_dust, r_dust_to_rd, r_disk, r_bulge,
+        sfh_disk_mass, sfh_disk_metal_mass, sfh_bulge_mass, sfh_bulge_metal_mass
+    ):
+        sfh_disk, l_norm_disk = self._derive_sfh(sfh_disk_mass, sfh_disk_metal_mass)
+        sfh_bulge, l_norm_bulge = self._derive_sfh(sfh_bulge_mass, sfh_bulge_metal_mass)
+        l_norm = l_norm_disk + l_norm_bulge
+        b_to_t = l_norm_bulge/l_norm
+        gp_0 = np.vstack([theta, den_dust, r_dust_to_rd, r_disk, r_bulge, l_norm, b_to_t]).T
+        gp = torch.as_tensor(self.helper.transform_all(gp_0, lib=np), dtype=torch.float32)
+        return gp, sfh_disk, sfh_bulge
+
+
+    def _create_tau_matrix(self, timesteps):
+        tau_edges = self.lib_ssp.tau_edges.numpy()
+        d_tau_base = np.diff(tau_edges)
+
+        matrix = np.zeros([len(timesteps) - 1, len(tau_edges) - 1], dtype=np.float32)
+        for i_step in range(len(timesteps) - 1):
+            t_lower = timesteps[i_step]
+            t_upper = timesteps[i_step + 1]
+            dt = t_upper - t_lower
+            matrix_sub = np.zeros(len(d_tau_base))
+            idx_lower = bisect_left(tau_edges, t_lower)
+            idx_upper = bisect_left(tau_edges, t_upper)
+            if idx_lower == 0:
+                if idx_upper == 0:
+                    raise ValueError("One time step is below the lower limit.")
+                else:
+                    idx_lower = 1
+            if idx_lower == len(tau_edges) and idx_upper == len(tau_edges):
+                raise ValueError("One time step is above the upper limit.")
+            if idx_upper == idx_lower:
+                matrix_sub[idx_lower - 1] = 1.
+            elif idx_upper > idx_lower:
+                d_tau = np.zeros(len(d_tau_base))
+                d_tau[idx_lower : idx_upper-1] = d_tau_base[idx_lower : idx_upper-1]
+                d_tau[idx_lower - 1] = (tau_edges[idx_lower] - t_lower)
+                d_tau[idx_upper - 1] = (t_upper - tau_edges[idx_upper - 1])
+                matrix_sub = d_tau/dt
+            matrix[i_step] = matrix_sub
+        return matrix
+    
+    
+    def _derive_sfh(self, sfh_mass, sfh_metal_mass):
+        sfh_mass = np.matmul(sfh_mass, self._tau_matrix)
+        sfh_metal_mass = np.matmul(sfh_metal_mass, self._tau_matrix)
+        sfh_met = self._derive_met(sfh_mass, sfh_metal_mass)
+        sfh_mass = sfh_mass[:, None, :]*self._interpolate_met(sfh_met)
+        sfh_mass = torch.as_tensor(sfh_mass, dtype=torch.float32)
+        sfh_frac, l_norm = self.lib_ssp.mass_to_light(sfh_mass)
+        sfh_frac = sfh_frac.flatten(start_dim=1)
+        return sfh_frac, l_norm
+
+
+    def _derive_met(self, sfh_mass, sfh_metal_mass):
+        cond = sfh_mass > 0.
+        sfh_met = np.zeros_like(sfh_mass)
+        sfh_met[cond] = sfh_metal_mass[cond]/sfh_mass[cond]
+        return sfh_met
+
+
+    def _interpolate_met(self, sfh_met):
+        met_centres = self.lib_ssp.met.numpy()
+        weights = np.zeros([len(sfh_met), len(met_centres), sfh_met.shape[-1]], dtype=np.float32)
+        met = np.copy(sfh_met) # Make a copy
+        met[met < met_centres[0]] = met_centres[0]
+        met[met > met_centres[-1]] = met_centres[-1]
+        inds = np.searchsorted(met_centres, met)
+        inds[inds == 0] = 1
+        met_lower = met_centres[inds - 1]
+        met_upper = met_centres[inds]
+        weights_lower = (met_upper - met)/(met_upper - met_lower)
+        weights_upper = 1 - weights_lower
+        for i_tau in range(weights.shape[-1]):
+            weights[range(len(met)), inds[:, i_tau] - 1, i_tau] = weights_lower[:, i_tau]
+            weights[range(len(met)), inds[:, i_tau], i_tau] = weights_upper[:, i_tau]
+        return weights
 
 
 def simplex_transform(x):
