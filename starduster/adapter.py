@@ -50,7 +50,9 @@ class Adapter(nn.Module):
         if selector_bulge is not None:
             self.selector_bulge = selector_bulge
         self.register_buffer("_device", torch.tensor(0.), persistent=False)
-        self.configure(GalaxyParameter(), DiscreteSFH(), DiscreteSFH(), flat_input=False)
+        self.configure(
+            GalaxyParameter(), DiscreteSFH(), DiscreteSFH(), flat_input=False, check_sfh_norm=True
+        )
 
 
     def forward(self, *args, check_bounds=False):
@@ -81,7 +83,9 @@ class Adapter(nn.Module):
             return self._apply_pset(gp, sfh_disk, sfh_bulge)
 
 
-    def configure(self, gp=None, sfh_disk=None, sfh_bulge=None, flat_input=None):
+    def configure(
+        self, gp=None, sfh_disk=None, sfh_bulge=None, flat_input=None, check_sfh_norm=None
+    ):
         """Configure the input mode.
 
         Parameters
@@ -94,6 +98,9 @@ class Adapter(nn.Module):
             Parametrisation of the bulge star formation history.
         flat_input : bool
             If ``True``, assume the input array is flat.
+        check_sfh_norm : bool
+            If ``True``, raise an error when star formation history is not
+            normalised to one.
         """
         if gp is not None:
             self.pset_gp = gp.init(self.helper)
@@ -103,6 +110,8 @@ class Adapter(nn.Module):
             self.pset_sfh_bulge = sfh_bulge.init(self.lib_ssp)
         if flat_input is not None:
             self.flat_input = flat_input
+        if check_sfh_norm is not None:
+            self.check_sfh_norm = check_sfh_norm
         #
         pset_names = ['pset_gp', 'pset_sfh_disk', 'pset_sfh_bulge']
         free_shape = []
@@ -140,9 +149,10 @@ class Adapter(nn.Module):
         sfh_disk = self.pset_sfh_disk(sfh_disk)
         sfh_bulge = self.pset_sfh_bulge(sfh_bulge)
 
-        msg = "Star formation history must be normalised to one."
-        assert torch.allclose(sfh_disk.sum(dim=-1), torch.tensor(1.)), msg
-        assert torch.allclose(sfh_bulge.sum(dim=-1), torch.tensor(1.)), msg
+        if self.check_sfh_norm:
+            msg = "Star formation history must be normalised to one."
+            assert torch.allclose(sfh_disk.sum(dim=-1), torch.tensor(1.), atol=1e-5), msg
+            assert torch.allclose(sfh_bulge.sum(dim=-1), torch.tensor(1.), atol=1e-5), msg
 
         return gp, sfh_disk, sfh_bulge
 
