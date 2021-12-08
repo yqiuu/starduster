@@ -20,10 +20,15 @@ PyTorch throughout the applications.
 
 .. toctree::
    :maxdepth: 2
-   :caption: User guide:
+   :caption: Getting started
+
+   sample_seds
+
+.. toctree::
+   :maxdepth: 2
+   :caption: User guide
 
    starduster
    posterior
    analyzer
-
 
