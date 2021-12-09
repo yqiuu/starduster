@@ -377,7 +377,7 @@ class DiscreteSFR_InterpolatedMet(ParameterSet):
         self.sfr_bins = sfr_bins
         self.simplex_transform = simplex_transform
 
-        log_met = torch.log10(lib_ssp.met/constants.met_sol)[:, None]
+        log_met = torch.log10(lib_ssp.met/constants.met_sol)
         log_met_min = float(log_met[0])
         log_met_max = float(log_met[-1])
         if uni_met:
@@ -397,7 +397,7 @@ class DiscreteSFR_InterpolatedMet(ParameterSet):
         log_met = params[:, self.n_sfr:]
         if self.simplex_transform:
             sfr = simplex_transform(sfr)
-        sfh = sfr[:, None, :]*self.derive_idw_met(log_met)
+        sfh = sfr[:, None, :]*self.derive_interp_met(log_met)
         if self.n_sfr != self.n_tau_ssp:
             sfh_full = torch.zeros([sfh.size(0), sfh.size(1), self.n_tau_ssp],
                 dtype=sfh.dtype, layout=sfh.layout, device=sfh.device)
@@ -408,11 +408,21 @@ class DiscreteSFR_InterpolatedMet(ParameterSet):
         return sfh
 
 
-    def derive_idw_met(self, log_met):
-        eps = 1e-6
-        inv = 1./((log_met[:, None, :] - self.log_met)**2 + eps)
-        return inv/inv.sum(dim=1)[:, None, :]
-
+    def derive_interp_met(self, log_met):
+        n_interp = len(self.log_met)
+        n_met = log_met.size(1)
+        log_met = torch.ravel(log_met)
+        inds = torch.searchsorted(self.log_met, log_met)
+        inds[inds == 0] = 1
+        inds[inds == n_interp] = n_interp - 1
+        met0 = self.log_met[inds - 1]
+        met1 = self.log_met[inds]
+        w0 = (met1 - log_met)/(met1 - met0)
+        w1 = 1 - w0
+        weights = w0[:, None]*F.one_hot(inds - 1, n_interp) + w1[:, None]*F.one_hot(inds, n_interp)
+        weights = torch.swapaxes(weights.reshape(-1, n_met, n_interp), 1, 2)
+        return weights
+        
 
 @partial_init
 class InverseDistanceWeightedSFH(ParameterSet):
