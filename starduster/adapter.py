@@ -8,25 +8,6 @@ from torch import nn
 from torch.nn import functional as F
 
 
-def partial_init(cls):
-    """Delay the initalisation of a class. The wrapped class should be
-    initialised using init, where an additional parameter can be passed.
-    """
-    class Wrapper:
-        def __init__(self, *args, **kwargs):
-            self.args = args
-            self.kwargs = kwargs
-            self.cls = cls
-
-
-        def init(self, arg_reserved):
-            return self.cls(arg_reserved, *self.args, **self.kwargs)
-
-    Wrapper.__name__ = cls.__name__
-    Wrapper.__doc__ = cls.__doc__
-    return Wrapper
-
-
 class Adapter(nn.Module):
     """Apply different parametrisations to input parameters.
 
@@ -51,7 +32,8 @@ class Adapter(nn.Module):
             self.selector_bulge = selector_bulge
         self.register_buffer("_device", torch.tensor(0.), persistent=False)
         self.configure(
-            GalaxyParameter(), DiscreteSFH(), DiscreteSFH(), flat_input=False, check_sfh_norm=True
+            GalaxyParameter(self), DiscreteSFH(self), DiscreteSFH(self),
+            flat_input=False, check_sfh_norm=True
         )
 
 
@@ -103,11 +85,11 @@ class Adapter(nn.Module):
             normalised to one.
         """
         if gp is not None:
-            self.pset_gp = gp.init(self.helper)
+            self.pset_gp = gp
         if sfh_disk is not None:
-            self.pset_sfh_disk = sfh_disk.init(self.lib_ssp)
+            self.pset_sfh_disk = sfh_disk
         if sfh_bulge is not None:
-            self.pset_sfh_bulge = sfh_bulge.init(self.lib_ssp)
+            self.pset_sfh_bulge = sfh_bulge
         if flat_input is not None:
             self.flat_input = flat_input
         if check_sfh_norm is not None:
@@ -255,12 +237,13 @@ class ParameterSet(nn.Module):
                     raise ValueError(msg)
 
 
-@partial_init
 class GalaxyParameter(ParameterSet):
     """A class to configure galaxy parameters.
 
     Parameters
     ----------
+    sed_model : MultiwavelengthSED
+        The target SED model.
     bounds : array
         An array of (min, max) to specify the working bounds of the parameters.
     clip_bounds : bool
@@ -269,13 +252,9 @@ class GalaxyParameter(ParameterSet):
     fixed_params : dict
         A dictionary to specify fixed parameters. Use the name of the parameter
         as the key.
-
-    Reserved
-    --------
-    helper : Helper
-        Helper of input parameters. This parameter is passed internally.
     """
-    def __init__(self, helper, bounds=None, clip_bounds=True, **fixed_params):
+    def __init__(self, sed_model, bounds=None, clip_bounds=True, **fixed_params):
+        helper = sed_model.helper
         param_names = helper.header.keys()
         bounds_default = [(-1., 1.)]*len(helper.header)
         # Transform the parameters
@@ -293,12 +272,13 @@ class GalaxyParameter(ParameterSet):
         super().__init__(param_names, fixed_params, bounds_default, bounds, clip_bounds)
 
 
-@partial_init
 class DiscreteSFH(ParameterSet):
     """Discrete star formation history.
 
     Parameters
     ----------
+    sed_model : MultiwavelengthSED
+        The target SED model.
     simplex_transform : bool
         If true, apply a transform to the input which maps a unit hypercube
         into a simplex.
@@ -310,16 +290,11 @@ class DiscreteSFH(ParameterSet):
     fixed_params : dict
         A dictionary to specify fixed parameters. Use the name of the parameter
         as the key.
-
-    Reserved
-    --------
-    lib_ssp : SSPLibrary
-        A simple stellar population library. This parameter is passed
-        internally.
     """
     def __init__(self,
-        lib_ssp, simplex_transform=False, bounds=None, clip_bounds=True, **fixed_params
+        sed_model, simplex_transform=False, bounds=None, clip_bounds=True, **fixed_params
     ):
+        lib_ssp = sed_model.lib_ssp
         self.simplex_transform = simplex_transform
         param_names = [f'sfr_{i_sfr}' for i_sfr in range(lib_ssp.n_ssp)]
         bounds_default = [(0., 1.)]*lib_ssp.n_ssp
@@ -333,13 +308,14 @@ class DiscreteSFH(ParameterSet):
             return params
 
 
-@partial_init
 class DiscreteSFR_InterpolatedMet(ParameterSet):
     """Star formation history with discrete stellar age and interpolated
     metallicity.
 
     Parameters
     ----------
+    sed_model : MultiwavelengthSED
+        The target SED model.
     sfr_bins : list
         A sequence of index pairs to specifiy the star formation rate bins. If
         not give, use the default bins.
@@ -356,19 +332,14 @@ class DiscreteSFR_InterpolatedMet(ParameterSet):
     fixed_params : dict
         A dictionary to specify fixed parameters. Use the name of the parameter
         as the key.
-
-    Reserved
-    --------
-    lib_ssp : SSPLibrary
-        A simple stellar population library. This parameter is passed
-        internally.
     """
     # TODO: Add functions to make sure that the SFH is normalised to one.
     # Handle the situation where there are only two SFR bins.
     def __init__(self,
-        lib_ssp, sfr_bins=None, uni_met=False, simplex_transform=False,
+        sed_model, sfr_bins=None, uni_met=False, simplex_transform=False,
         bounds=None, clip_bounds=True, **fixed_params
     ):
+        lib_ssp = sed_model.lib_ssp
         self.n_tau_ssp = lib_ssp.n_tau
         if sfr_bins is None:
             n_sfr = lib_ssp.n_tau
@@ -424,13 +395,14 @@ class DiscreteSFR_InterpolatedMet(ParameterSet):
         return weights
         
 
-@partial_init
 class InverseDistanceWeightedSFH(ParameterSet):
     """Star formation history obtained using the invserse distance weighted
     interpolation. Stellar age and metallicity are interpolated independently.
 
     Parameters
     ----------
+    sed_model : MultiwavelengthSED
+        The target SED model.
     bounds : array
         An array of (min, max) to specify the working bounds of the parameters.
     clip_bounds : bool
@@ -439,14 +411,9 @@ class InverseDistanceWeightedSFH(ParameterSet):
     fixed_params : dict
         A dictionary to specify fixed parameters. Use the name of the parameter
         as the key.
-
-    Reserved
-    --------
-    lib_ssp : SSPLibrary
-        A simple stellar population library. This parameter is passed
-        internally.
     """
-    def __init__(self, lib_ssp, bounds=None, clip_bounds=True, **fixed_params):
+    def __init__(self, sed_model, bounds=None, clip_bounds=True, **fixed_params):
+        lib_ssp = sed_model.lib_ssp
         log_met = torch.log10(lib_ssp.met/constants.met_sol)[:, None]
         log_tau = torch.log10(lib_ssp.tau)[:, None]
         param_names = ['log_met', 's_met', 'log_tau', 's_tau']
@@ -470,9 +437,9 @@ class InverseDistanceWeightedSFH(ParameterSet):
 
 
 class SemiAnalyticConventer:
-    def __init__(self, helper, lib_ssp, timesteps):
-        self.helper = helper
-        self.lib_ssp = lib_ssp
+    def __init__(self, sed_model, timesteps):
+        self.helper = sed_model.helper
+        self.lib_ssp = sed_model.lib_ssp
         self._tau_matrix = self._create_tau_matrix(timesteps)
         
 
