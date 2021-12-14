@@ -1,5 +1,6 @@
 from .utils import constants
 
+import pickle
 from bisect import bisect_left
 
 import numpy as np
@@ -108,6 +109,15 @@ class Adapter(nn.Module):
         self.input_size = sum(self.free_shape)
         self.param_names = param_names
         self.bounds = np.vstack(bounds)
+
+
+    def save_parameter_sets(self, fname):
+        parameter_sets = (self.pset_gp, self.pset_sfh_disk, self.pset_sfh_bulge)
+        pickle.dump(parameter_sets, open(fname, "wb"))
+
+
+    def load_parameter_sets(self, fname):
+        self.configure(*pickle.load(open(fname, "rb")))
 
 
     def unflatten(self, params):
