@@ -112,12 +112,12 @@ class Adapter(nn.Module):
 
 
     def save_parameter_sets(self, fname):
-        parameter_sets = (self.pset_gp, self.pset_sfh_disk, self.pset_sfh_bulge)
-        pickle.dump(parameter_sets, open(fname, "wb"))
+        parameter_sets = nn.ModuleList([self.pset_gp, self.pset_sfh_disk, self.pset_sfh_bulge])
+        torch.save(parameter_sets, fname)
 
 
-    def load_parameter_sets(self, fname):
-        self.configure(*pickle.load(open(fname, "rb")))
+    def load_parameter_sets(self, fname, map_location=None):
+        self.configure(*torch.load(fname), map_location)
 
 
     def unflatten(self, params):
