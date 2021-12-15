@@ -197,11 +197,11 @@ class Posterior(nn.Module):
         torch.save(inference_state, fname)
 
 
-    def load_inference_state(self, target, map_location=None):
+    def load_inference_state(self, target):
         if isinstance(target, InferenceState):
             inference_state = target
         else:
-            inference_state = torch.load(target, map_location)
+            inference_state = torch.load(target, self.sed_model.adapter.device)
         self.error_func = inference_state.error_func
         config_adapter, config_detector = inference_state.get_config()
         self.sed_model.configure_input_mode(**config_adapter)
