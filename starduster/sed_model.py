@@ -163,16 +163,6 @@ class MultiwavelengthSED(nn.Module):
         self.detector.configure(*args, **kwargs)
 
 
-    @wraps(Adapter.save_parameter_sets, assigned=('__doc__',))
-    def save_parameter_sets(self, *args, **kwargs):
-        self.adapter.save_parameter_sets(*args, **kwargs)
-
-
-    @wraps(Adapter.load_parameter_sets, assigned=('__doc__',))
-    def load_parameter_sets(self, *args, **kwargs):
-        self.adapter.load_parameter_sets(*args, **kwargs)
-
-
     @property
     def input_size(self):
         """Number of input parameters."""

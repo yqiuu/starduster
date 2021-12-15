@@ -67,6 +67,7 @@ class Detector(nn.Module):
             self.register_buffer('lam_pivot', torch.tensor(lam_pivot, dtype=torch.float32))
         self.dist_factor = 10**(-.4*distmod)
         self.ab_mag = ab_mag
+        self._config = {'filters': filters, 'z': z, 'distmod': distmod, 'ab_mag': ab_mag}
 
 
     def _preprocess_filter(self, ftr, lam):
@@ -91,4 +92,8 @@ class Detector(nn.Module):
         unit_f_nu = U.solLum/(4*np.pi*(10*U.parsec)**2)*U.micrometer/constants.c
         self.unit_f_nu = unit_f_nu.to(U.jansky).value
         self.unit_jansky = self.unit_f_nu
+
+
+    def _get_config(self):
+        return self._config
 

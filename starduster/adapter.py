@@ -111,15 +111,6 @@ class Adapter(nn.Module):
         self.bounds = np.vstack(bounds)
 
 
-    def save_parameter_sets(self, fname):
-        parameter_sets = nn.ModuleList([self.pset_gp, self.pset_sfh_disk, self.pset_sfh_bulge])
-        torch.save(parameter_sets, fname)
-
-
-    def load_parameter_sets(self, fname, map_location=None):
-        self.configure(*torch.load(fname), map_location)
-
-
     def unflatten(self, params):
         params = torch.atleast_2d(params)
         params_out = [None]*len(self.free_shape)
@@ -147,6 +138,16 @@ class Adapter(nn.Module):
             assert torch.allclose(sfh_bulge.sum(dim=-1), torch.tensor(1.), atol=1e-5), msg
 
         return gp, sfh_disk, sfh_bulge
+
+
+    def _get_config(self):
+        return {
+            'gp': self.pset_gp,
+            'sfh_disk' : self.pset_sfh_disk,
+            'sfh_bulge': self.pset_sfh_bulge,
+            'flat_input': self.flat_input,
+            'check_sfh_norm': self.check_sfh_norm,
+        }
 
 
 class ParameterSet(nn.Module):

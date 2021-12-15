@@ -127,10 +127,9 @@ class Posterior(nn.Module):
     error_func : ErrorFunction
         Error function.
     """
-    def __init__(self, sed_model, error_func):
+    def __init__(self, sed_model):
         super().__init__()
         self.sed_model = sed_model
-        self.error_func = error_func
         self.configure_output_mode()
 
 
@@ -191,6 +190,25 @@ class Posterior(nn.Module):
         self.log_out = log_out
 
 
+    def save_inference_state(self, fname, data):
+        config_adapter = self.sed_model.adapter._get_config()
+        config_detector = self.sed_model.detector._get_config()
+        inference_state = InferenceState(self.error_func, config_adapter, config_detector, data)
+        torch.save(inference_state, fname)
+
+
+    def load_inference_state(self, target, map_location=None):
+        if isinstance(target, InferenceState):
+            inference_state = target
+        else:
+            inference_state = torch.load(target, map_location)
+        self.error_func = inference_state.error_func
+        config_adapter, config_detector = inference_state.get_config()
+        self.sed_model.configure_input_mode(**config_adapter)
+        self.sed_model.configure_output_mode(**config_detector)
+        return inference_state.data
+
+
     @property
     def input_size(self):
         """Number of input parameters."""
@@ -207,6 +225,30 @@ class Posterior(nn.Module):
     def bounds(self):
         """Bounds of input parameters."""
         return np.vstack([self.sed_model.adapter.bounds, self.error_func.bounds])
+
+
+class InferenceState(nn.Module):
+    def __init__(self, error_func, config_adapter=None, config_detector=None, data=None):
+        super().__init__()
+        self.error_func = error_func
+        self.data = data
+        if config_adapter is not None:
+            for key, val in config_adapter.items():
+                setattr(self, 'adapter.' + key, val)
+        if config_detector is not None:
+            for key, val in config_detector.items():
+                setattr(self, 'detector.' + key, val)
+
+
+    def get_config(self):
+        config_adapter = {}
+        config_detector = {}
+        for name in dir(self):
+            if 'adapter' in name:
+                config_adapter[name.replace('adapter.', '')] = getattr(self, name)
+            if 'detector' in name:
+                config_detector[name.replace('detector.', '')] = getattr(self, name)
+        return config_adapter, config_detector
 
 
 class OptimizerWrapper(nn.Module):
