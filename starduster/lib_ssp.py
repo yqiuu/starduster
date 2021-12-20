@@ -37,7 +37,7 @@ class SSPLibrary:
 
     @classmethod
     def from_builtin(cls):
-        dirname = path.join(path.dirname(path.abspath(__file__)), "models")
+        dirname = path.join(path.dirname(path.abspath(__file__)), "data")
         fname = path.join(dirname, "FSPS_Chabrier_neb_compact.pickle")
         lam_main = pickle.load(open(path.join(dirname, "lam_main.pickle"), "rb"))
         return cls(fname, lam_main)

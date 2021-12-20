@@ -81,7 +81,7 @@ class MultiwavelengthSED(nn.Module):
     def from_builtin(cls):
         """Initialise the built-in SED model."""
         lib_ssp = SSPLibrary.from_builtin()
-        dirname = path.join(path.dirname(path.abspath(__file__)), "models")
+        dirname = path.join(path.dirname(path.abspath(__file__)), "data")
         fname_da_disk = path.join(dirname, "curve_disk.pt")
         fname_da_bulge = path.join(dirname, "curve_bulge.pt")
         fname_de = path.join(dirname, "emission.pt")
