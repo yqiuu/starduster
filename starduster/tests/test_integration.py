@@ -22,12 +22,12 @@ def test_integration():
     sed_model.configure_output_mode(filters, z=z_test, distmod=distmod, ab_mag=True)
     sed_model.configure_input_mode(
         starduster.GalaxyParameter(
-            bounds={'b_to_t':(.1, .8)}
+            sed_model, bounds={'b_to_t':(.1, .8)}
         ),
         starduster.DiscreteSFR_InterpolatedMet(
-            uni_met=True, simplex_transform=True, bounds_transform=True
+            sed_model, uni_met=True, simplex_transform=True, bounds_transform=True
         ),
-        starduster.InverseDistanceWeightedSFH(),
+        starduster.InverseDistanceWeightedSFH(sed_model),
         flat_input=True,
     )
     analyzer = starduster.Analyzer(sed_model)

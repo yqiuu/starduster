@@ -127,9 +127,10 @@ class Posterior(nn.Module):
     error_func : ErrorFunction
         Error function.
     """
-    def __init__(self, sed_model):
+    def __init__(self, sed_model, error_func):
         super().__init__()
         self.sed_model = sed_model
+        self.error_func = error_func
         self.configure_output_mode()
 
 
