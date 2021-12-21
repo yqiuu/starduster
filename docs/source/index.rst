@@ -22,7 +22,7 @@ PyTorch throughout the applications.
    :maxdepth: 2
    :caption: Getting started
 
-   sample_seds
+   tutorials/sample_seds
 
 .. toctree::
    :maxdepth: 2
