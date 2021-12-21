@@ -208,8 +208,8 @@ class Posterior(nn.Module):
             inference_state = torch.load(target, self.sed_model.adapter.device)
         self.error_func = inference_state.error_func
         config_adapter, config_detector = inference_state.get_config()
-        self.sed_model.configure_input_mode(**config_adapter)
-        self.sed_model.configure_output_mode(**config_detector)
+        self.sed_model.configure_adapter(**config_adapter)
+        self.sed_model.configure_detector(**config_detector)
         return inference_state.data
 
 

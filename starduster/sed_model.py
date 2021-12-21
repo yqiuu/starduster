@@ -154,12 +154,12 @@ class MultiwavelengthSED(nn.Module):
 
 
     @wraps(Adapter.configure, assigned=('__doc__',))
-    def configure_input_mode(self, *args, **kwargs):
+    def configure_adapter(self, *args, **kwargs):
         self.adapter.configure(*args, **kwargs)
 
     
     @wraps(Detector.configure, assigned=('__doc__',))
-    def configure_output_mode(self, *args, **kwargs):
+    def configure_detector(self, *args, **kwargs):
         self.detector.configure(*args, **kwargs)
 
 

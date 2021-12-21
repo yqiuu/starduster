@@ -19,8 +19,8 @@ def test_integration():
     distmod= 0.
 
     sed_model = starduster.MultiwavelengthSED.from_builtin()
-    sed_model.configure_output_mode(filters, z=z_test, distmod=distmod, ab_mag=True)
-    sed_model.configure_input_mode(
+    sed_model.configure_detector(filters, z=z_test, distmod=distmod, ab_mag=True)
+    sed_model.configure_adapter(
         starduster.GalaxyParameter(
             sed_model, bounds={'b_to_t':(.1, .8)}
         ),
