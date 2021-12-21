@@ -473,6 +473,7 @@ class SemiAnalyticConventer:
 
     def _create_tau_matrix(self, age_bins):
         tau_edges = self.lib_ssp.tau_edges.numpy()
+        n_edge = len(tau_edges)
         d_tau_base = np.diff(tau_edges)
 
         matrix = np.zeros([len(age_bins) - 1, len(tau_edges) - 1], dtype=np.float32)
@@ -480,24 +481,32 @@ class SemiAnalyticConventer:
             t_lower = age_bins[i_step]
             t_upper = age_bins[i_step + 1]
             dt = t_upper - t_lower
+            assert dt > 0, "Age bins must be strictly increasing."
             matrix_sub = np.zeros(len(d_tau_base))
             idx_lower = bisect_left(tau_edges, t_lower)
             idx_upper = bisect_left(tau_edges, t_upper)
             if idx_lower == 0:
                 if idx_upper == 0:
-                    raise ValueError("One time step is below the lower limit.")
+                    raise ValueError("An age bin is entirely beyond the youngest age.")
                 else:
                     idx_lower = 1
-            if idx_lower == len(tau_edges) and idx_upper == len(tau_edges):
-                raise ValueError("One time step is above the upper limit.")
+            if idx_upper == n_edge:
+                if idx_lower == n_edge:
+                    raise ValueError("An age bin is entirely beyond the oldest age.")
+                else:
+                    idx_upper = n_edge - 1
             if idx_upper == idx_lower:
+                # Distribute the mass into one bin
                 matrix_sub[idx_lower - 1] = 1.
             elif idx_upper > idx_lower:
+                # Distibute the mass into two bins according to the time fraction
                 d_tau = np.zeros(len(d_tau_base))
                 d_tau[idx_lower : idx_upper-1] = d_tau_base[idx_lower : idx_upper-1]
                 d_tau[idx_lower - 1] = (tau_edges[idx_lower] - t_lower)
                 d_tau[idx_upper - 1] = (t_upper - tau_edges[idx_upper - 1])
                 matrix_sub = d_tau/dt
+            else:
+                ValueError("Something wrong with the age bins.")
             matrix[i_step] = matrix_sub
         return matrix
     
