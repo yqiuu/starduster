@@ -379,7 +379,7 @@ class DiscreteSFR_InterpolatedMet(ParameterSet):
         log_met = params[:, self.n_sfr:]
         if self.simplex_transform:
             sfr = simplex_transform(sfr)
-        sfh = sfr[:, None, :]*self.derive_interp_met(log_met)
+        sfh = sfr[:, None, :]*torch.swapaxes(compute_interp_weights(log_met, self.log_met), 1, 2)
         if self.n_sfr != self.n_tau_ssp:
             sfh_full = torch.zeros([sfh.size(0), sfh.size(1), self.n_tau_ssp],
                 dtype=sfh.dtype, layout=sfh.layout, device=sfh.device)
@@ -538,3 +538,35 @@ def simplex_transform(x):
     x = -torch.log(1 - x)
     return x/x.sum(dim=-1, keepdim=True)
 
+
+def compute_interp_weights(x, xp):
+    """Compute the weights for lienar interpolation.
+
+    This function assumes that the point at which to evaluate is two
+    dimensional.
+
+    Parameters
+    ----------
+    x : tensor
+        (N, M). Points at which to evaluate
+    xp : tensor
+        (D,). Data points
+
+    Returns
+    -------
+    weights : tensor
+        (N, M, D). Weights for linear interpolation.
+    """
+    n_interp = xp.size(0)
+    n_x = x.size(1)
+    x = torch.ravel(x)
+    inds = torch.searchsorted(xp, x)
+    inds[inds == 0] = 1
+    inds[inds == n_interp] = n_interp - 1
+    x0 = xp[inds - 1]
+    x1 = xp[inds]
+    w0 = (x1 - x)/(x1 - x0)
+    w1 = 1 - w0
+    weights = w0[:, None]*F.one_hot(inds - 1, n_interp) + w1[:, None]*F.one_hot(inds, n_interp)
+    weights = weights.reshape(-1, n_x, n_interp)
+    return weights
