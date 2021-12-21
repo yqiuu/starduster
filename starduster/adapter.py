@@ -406,7 +406,7 @@ class DiscreteSFR_InterpolatedMet(ParameterSet):
         return weights
         
 
-class InverseDistanceWeightedSFH(ParameterSet):
+class InterpolatedSFH(ParameterSet):
     """Star formation history obtained using the invserse distance weighted
     interpolation. Stellar age and metallicity are interpolated independently.
 
@@ -425,8 +425,8 @@ class InverseDistanceWeightedSFH(ParameterSet):
     """
     def __init__(self, sed_model, bounds=None, clip_bounds=True, **fixed_params):
         lib_ssp = sed_model.lib_ssp
-        log_met = torch.log10(lib_ssp.met/constants.met_sol)[:, None]
-        log_tau = torch.log10(lib_ssp.tau)[:, None]
+        log_met = torch.log10(lib_ssp.met/constants.met_sol)
+        log_tau = torch.log10(lib_ssp.tau)
         param_names = ['log_met', 's_met', 'log_tau', 's_tau']
         bounds_default = np.asarray([
             (float(log_met[0]), float(log_met[-1])), (-2., 1.),
@@ -440,11 +440,9 @@ class InverseDistanceWeightedSFH(ParameterSet):
     def derive_full_params(self, params):
         eps = 1e-6
         log_met, s_met, log_tau, s_tau = params.T
-        inv = 1./(torch.abs(log_met - self.log_met)**(10**s_met) + eps)
-        w_met = (inv/inv.sum(dim=0)).T
-        inv = 1./(torch.abs(log_tau - self.log_tau)**(10**s_tau) + eps)
-        w_tau = (inv/inv.sum(dim=0)).T
-        return torch.flatten(w_met[:, :, None]*w_tau[:, None, :], start_dim=1)
+        w_met = torch.swapaxes(compute_interp_weights(log_met[:, None], self.log_met), 1, 2)
+        w_tau = compute_interp_weights(log_tau[:, None], self.log_tau)
+        return torch.flatten(w_met*w_tau, start_dim=1)
 
 
 class SemiAnalyticConventer:

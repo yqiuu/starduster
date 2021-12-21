@@ -27,7 +27,7 @@ def test_integration():
         starduster.DiscreteSFR_InterpolatedMet(
             sed_model, uni_met=True, simplex_transform=True, bounds_transform=True
         ),
-        starduster.InverseDistanceWeightedSFH(sed_model),
+        starduster.InterpolatedSFH(sed_model),
         flat_input=True,
     )
     analyzer = starduster.Analyzer(sed_model)
