@@ -23,6 +23,7 @@ PyTorch throughout the applications.
    :caption: Getting started
 
    tutorials/sample_seds
+   tutorials/generating_sed_for_sam
 
 .. toctree::
    :maxdepth: 2
