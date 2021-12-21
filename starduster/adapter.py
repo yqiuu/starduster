@@ -194,12 +194,7 @@ class ParameterSet(nn.Module):
 
 
     def forward(self, params):
-        if self.clip_bounds:
-            eps = 1e-6
-            params = (params - self.bound_centre)/self.bound_radius
-            params = F.hardtanh(params, -1 + eps, 1 - eps)
-            params = self.bound_radius*params + self.bound_centre
-
+        params = self._clip_bounds(params)
         params = self.derive_full_params(self.set_fixed_params(params))
         return params
 
@@ -231,6 +226,15 @@ class ParameterSet(nn.Module):
             else:
                 free_inds.append(i_k)
         return params_default, free_inds
+
+
+    def _clip_bounds(self, params):
+        if self.clip_bounds:
+            eps = 1e-6
+            params = (params - self.bound_centre)/self.bound_radius
+            params = F.hardtanh(params, -1 + eps, 1 - eps)
+            params = self.bound_radius*params + self.bound_centre
+        return params
 
 
     def _update_bounds(self, param_names, bounds_default, bounds):
