@@ -450,18 +450,20 @@ class InterpolatedSFH(ParameterSet):
 
 
 class SemiAnalyticConventer:
-    def __init__(self, sed_model, timesteps):
+    def __init__(self, sed_model, age_bins):
         self.helper = sed_model.helper
         self.lib_ssp = sed_model.lib_ssp
-        self._tau_matrix = self._create_tau_matrix(timesteps)
+        self._tau_matrix = self._create_tau_matrix(age_bins)
         
 
     def __call__(self,
-        theta, den_dust, r_dust_to_rd, r_disk, r_bulge,
-        sfh_disk_mass, sfh_disk_metal_mass, sfh_bulge_mass, sfh_bulge_metal_mass
+        theta, m_dust, r_dust, r_disk, r_bulge,
+        sfh_mass_disk, sfh_metal_mass_disk, sfh_mass_bulge, sfh_metal_mass_bulge
     ):
-        sfh_disk, l_norm_disk = self._derive_sfh(sfh_disk_mass, sfh_disk_metal_mass)
-        sfh_bulge, l_norm_bulge = self._derive_sfh(sfh_bulge_mass, sfh_bulge_metal_mass)
+        den_dust = m_dust/(2*np.pi*r_dust*r_dust)
+        r_dust_to_rd = r_dust/r_disk
+        sfh_disk, l_norm_disk = self._derive_sfh(sfh_mass_disk, sfh_metal_mass_disk)
+        sfh_bulge, l_norm_bulge = self._derive_sfh(sfh_mass_bulge, sfh_metal_mass_bulge)
         l_norm = l_norm_disk + l_norm_bulge
         b_to_t = l_norm_bulge/l_norm
         gp_0 = np.vstack([theta, den_dust, r_dust_to_rd, r_disk, r_bulge, l_norm, b_to_t]).T
@@ -469,14 +471,14 @@ class SemiAnalyticConventer:
         return gp, sfh_disk, sfh_bulge
 
 
-    def _create_tau_matrix(self, timesteps):
+    def _create_tau_matrix(self, age_bins):
         tau_edges = self.lib_ssp.tau_edges.numpy()
         d_tau_base = np.diff(tau_edges)
 
-        matrix = np.zeros([len(timesteps) - 1, len(tau_edges) - 1], dtype=np.float32)
-        for i_step in range(len(timesteps) - 1):
-            t_lower = timesteps[i_step]
-            t_upper = timesteps[i_step + 1]
+        matrix = np.zeros([len(age_bins) - 1, len(tau_edges) - 1], dtype=np.float32)
+        for i_step in range(len(age_bins) - 1):
+            t_lower = age_bins[i_step]
+            t_upper = age_bins[i_step + 1]
             dt = t_upper - t_lower
             matrix_sub = np.zeros(len(d_tau_base))
             idx_lower = bisect_left(tau_edges, t_lower)
