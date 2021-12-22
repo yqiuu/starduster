@@ -431,10 +431,9 @@ class InterpolatedSFH(ParameterSet):
         lib_ssp = sed_model.lib_ssp
         log_met = torch.log10(lib_ssp.met/constants.met_sol)
         log_tau = torch.log10(lib_ssp.tau)
-        param_names = ['log_met', 's_met', 'log_tau', 's_tau']
+        param_names = ['log_met', 'log_tau']
         bounds_default = np.asarray([
-            (float(log_met[0]), float(log_met[-1])), (-2., 1.),
-            (float(log_tau[0]), float(log_tau[-1])), (-2., 1.)
+            (log_met[0].item(), log_met[-1].item()), (log_tau[0].item(),log_tau[-1].item()),
         ])
         super().__init__(param_names, fixed_params, bounds_default, bounds, clip_bounds)
         self.register_buffer('log_met', log_met)
@@ -443,7 +442,7 @@ class InterpolatedSFH(ParameterSet):
 
     def derive_full_params(self, params):
         eps = 1e-6
-        log_met, s_met, log_tau, s_tau = params.T
+        log_met, log_tau = params.T
         w_met = torch.swapaxes(compute_interp_weights(log_met[:, None], self.log_met), 1, 2)
         w_tau = compute_interp_weights(log_tau[:, None], self.log_tau)
         return torch.flatten(w_met*w_tau, start_dim=1)
@@ -583,3 +582,4 @@ def compute_interp_weights(x, xp):
     weights = w0[:, None]*F.one_hot(inds - 1, n_interp) + w1[:, None]*F.one_hot(inds, n_interp)
     weights = weights.reshape(-1, n_x, n_interp)
     return weights
+
