@@ -3,10 +3,10 @@ from setuptools import setup, find_packages
 description = \
     "A multi-wavelength SED model based on radiative transfer simulations and deep learning"
 install_requires = [
-    'astropy>=4.2',
-    'numpy>=1.17.0',
-    'astro-sedpy>=0.2.0',
-    'torch>=1.9.0',
+    'astropy>=3',
+    'numpy>=1.17',
+    'astro-sedpy>=0.2',
+    'torch>=1.8',
     'tqdm',
 ]
 
