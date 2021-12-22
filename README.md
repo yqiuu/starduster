@@ -4,5 +4,5 @@ Starduster is a deep learning model to emulate dust radiative transfer simulatio
 ## Notice
 The code is still under heavy development, and therefore the API can be changed in the future. Please raise a issue if you find any bug.
 ## Installation
-The code uses PyTorch. Please go to the [website](https://pytorch.org/) to find an appropriate version to install. After that, clone the repository and install the package by running ``pip install .` in the repository directory.
+The code uses PyTorch. Please go to the [website](https://pytorch.org/) to find an appropriate version to install. After that, clone the repository and install the package by running ``pip install .`` in the repository directory.
 
