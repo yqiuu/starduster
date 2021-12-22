@@ -22,7 +22,7 @@ PyTorch throughout the applications.
    :maxdepth: 2
    :caption: Getting started
 
-   tutorials/sample_seds
+   tutorials/sampling_seds
    tutorials/generating_sed_for_sam
    tutorials/fitting_sed
 
@@ -30,7 +30,5 @@ PyTorch throughout the applications.
    :maxdepth: 2
    :caption: User guide
 
-   starduster
-   posterior
-   analyzer
+   sed_model
 

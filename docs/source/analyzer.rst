@@ -1,3 +1,0 @@
-Analyzer
-========
-.. autoclass:: starduster.Analyzer

@@ -1,3 +1,0 @@
-Posterior
-=========
-.. autoclass:: starduster.Posterior
