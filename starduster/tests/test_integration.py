@@ -4,10 +4,11 @@ import starduster
 
 
 def test_integration():
+    torch.set_num_threads(1)
     torch.manual_seed(831)
     # Create SED model
     band_names = [
-        'galex_NUV',
+        'galex_FUV', 'galex_NUV',
         'sdss_u0', 'sdss_g0', 'sdss_r0', 'sdss_i0', 'sdss_z0',
         'twomass_J', 'twomass_H', 'twomass_Ks',
         'wise_w1', 'wise_w2', 'wise_w3', 'wise_w4',
@@ -21,12 +22,8 @@ def test_integration():
     sed_model = starduster.MultiwavelengthSED.from_builtin()
     sed_model.configure_detector(filters, z=z_test, distmod=distmod, ab_mag=True)
     sed_model.configure_adapter(
-        starduster.GalaxyParameter(
-            sed_model, bounds={'b_to_t':(.1, .8)}
-        ),
-        starduster.DiscreteSFR_InterpolatedMet(
-            sed_model, uni_met=True, simplex_transform=True, bounds_transform=True
-        ),
+        starduster.GalaxyParameter(sed_model, bounds={'b_to_t':(.1, .8)}),
+        starduster.InterpolatedSFH(sed_model),
         starduster.InterpolatedSFH(sed_model),
         flat_input=True,
     )
@@ -42,7 +39,7 @@ def test_integration():
     posterior = starduster.Posterior(sed_model, likelihood)
     posterior.configure_output_mode(output_mode='torch', negative=True, log_out=0.)
     # Fit the test data
-    sampler = lambda n_samp: x_test + 3*eps*(2*torch.rand(n_samp, len(x_test)) - 1)
+    sampler = lambda n_samp: x_test*(1 + eps*(2*torch.rand(n_samp, len(x_test)) - 1))
     x0 = starduster.sample_effective_region(sed_model, sampler=sampler)
     x_pred = starduster.optimize(posterior, torch.optim.Adam, x0, n_step=300, lr=1e-2)
     # Check data
