@@ -24,6 +24,7 @@ PyTorch throughout the applications.
 
    tutorials/sample_seds
    tutorials/generating_sed_for_sam
+   tutorials/fitting_sed
 
 .. toctree::
    :maxdepth: 2
