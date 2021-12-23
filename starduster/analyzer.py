@@ -42,7 +42,7 @@ class Analyzer:
 
 
     def list_available_properties(self):
-        prop_names = []
+        prop_names = list(self.helper.header)
         for name, calc in self._calculators.items():
             if calc.is_separable:
                 prop_names.extend([name, name + '_disk', name + '_bulge'])
@@ -56,6 +56,10 @@ class Analyzer:
         output = {}
         for name in prop_names:
             if name in output:
+                continue
+
+            if name in self.helper.header:
+                output[name] = self.helper.get_item(gp_0, name)
                 continue
 
             if name.endswith('_disk'):
