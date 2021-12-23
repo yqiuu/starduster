@@ -127,6 +127,14 @@ class Analyzer:
         return torch.trapz(lum, torch.log(self.sed_model.lam))
 
 
+    @register_calculator('r_dust', 'recovered_gp', is_separable=False)
+    def compute_r_dust(self, gp_0):
+        r_disk = self.helper.get_item(gp_0, 'r_disk')
+        r_dust_to_rd = self.helper.get_item(gp_0, 'r_dust_to_rd')
+        r_dust = r_disk*r_dust_to_rd
+        return r_dust
+
+
     @register_calculator('m_dust', 'recovered_gp', is_separable=False)
     def compute_m_dust(self, gp_0):
         """Compute dust mass.
@@ -141,9 +149,7 @@ class Analyzer:
         m_dust : tensor [M_sol]
             Dust mass.
         """
-        r_disk = self.helper.get_item(gp_0, 'r_disk')
-        r_dust_to_rd = self.helper.get_item(gp_0, 'r_dust_to_rd')
-        r_dust = r_disk*r_dust_to_rd
+        r_dust = self.compute_r_dust(self, gp_0)
         den_dust = self.helper.get_item(gp_0, 'den_dust')
         return den_dust*(2*np.pi*r_dust*r_dust)
 
