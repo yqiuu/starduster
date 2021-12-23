@@ -2,28 +2,17 @@ from .utils import units, constants, accept_reject
 from .sed_model import MultiwavelengthSED
 from .selector import sample_from_selector
 
-from functools import update_wrapper
-
 import torch
 import numpy as np
 
 
 def register_calculator(name, input_type, is_separable):
-    def wrapper(func):
-        return update_wrapper(PropertyCalculator(func, name, input_type, is_separable), func)
-    return wrapper
-
-
-class PropertyCalculator:
-    def __init__(self, func, name, input_type, is_separable):
-        self.func = func
-        self.name = name
-        self.input_type = input_type
-        self.is_separable = is_separable
-
-
-    def __call__(self, *args, **kwargs):
-        return self.func(*args, **kwargs)
+    def add_attrs(func):
+        func.name = name
+        func.input_type = input_type
+        func.is_separable = is_separable
+        return func
+    return add_attrs
 
 
 class Analyzer:
@@ -85,12 +74,12 @@ class Analyzer:
                 raise ValueError
 
             if name_disk is None:
-                output[name] = calc(self, *args)
+                output[name] = calc(*args)
             else:
                 if calc.is_separable:
                     # Always store the properties of both the disk and bulge
                     # components. The unwanted property will be deleted later.
-                    output[name_disk], output[name_bulge] = calc(self, *args, separate=True)
+                    output[name_disk], output[name_bulge] = calc(*args, separate=True)
                 else:
                     raise ValueError("{} is not separable.".format(name))
 
@@ -149,7 +138,7 @@ class Analyzer:
         m_dust : tensor [M_sol]
             Dust mass.
         """
-        r_dust = self.compute_r_dust(self, gp_0)
+        r_dust = self.compute_r_dust(gp_0)
         den_dust = self.helper.get_item(gp_0, 'den_dust')
         return den_dust*(2*np.pi*r_dust*r_dust)
 
@@ -354,7 +343,7 @@ class Analyzer:
         calculators = {}
         for name in dir(self):
             attr = getattr(self, name)
-            if isinstance(attr, PropertyCalculator):
+            if hasattr(attr, 'name'):
                 calculators[attr.name] = attr
         self._calculators = calculators
 
