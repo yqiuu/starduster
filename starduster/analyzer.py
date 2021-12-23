@@ -97,6 +97,13 @@ class Analyzer:
         return output
 
 
+    @register_calculator('frac_abs', 'scaled_params', is_separable=False)
+    def compute_absorption_fraction(self, params):
+        with torch.no_grad():
+            frac = self.sed_model.predict_absorption_fraction(params)
+        return frac
+
+
     @register_calculator('l_bol', 'scaled_params', is_separable=False)
     def compute_l_bol(self, params):
         """Compute bolometic luminosity.

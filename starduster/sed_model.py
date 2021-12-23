@@ -152,6 +152,10 @@ class MultiwavelengthSED(nn.Module):
         else:
             return l_ret
 
+    
+    def predict_absorption_fraction(self, *args):
+        return torch.ravel(self.dust_emission(*self.adapter(*args))[-1])
+
 
     @wraps(Adapter.configure, assigned=('__doc__',))
     def configure_adapter(self, *args, **kwargs):
