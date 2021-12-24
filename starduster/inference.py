@@ -59,15 +59,6 @@ class Gaussian(ErrorFunction):
     norm : bool
         If False, only return the value in the exponent; otherwise add the
         normalisation factor to the output.
-
-    Inputs
-    ------
-    y_pred : tensor
-        (N, M), where M is the number of the observational data.
-
-    Outputs
-    -------
-        (N,).
     """
     def __init__(self, y_obs, y_err, norm=True):
         super().__init__()
@@ -80,6 +71,17 @@ class Gaussian(ErrorFunction):
 
 
     def forward(self, *args):
+        """
+        Parameters
+        ----------
+        y_pred : tensor (N, M)
+            Predicted data. M is the number of the observational data.
+
+        Returns
+        -------
+        log_prob : tensor
+            log probability density or log error.
+        """
         delta = (args[0] - self.y_obs)/self.y_err
         return torch.sum(-.5*delta*delta, dim=-1) + self.norm
 
@@ -96,15 +98,6 @@ class GaussianWithScatter(ErrorFunction):
     bounds : tuple
         An tuple of (min, max) to specify the bounds of the intrinsic scatter.
         The bounds should be in base 10 logarithmic scale.
-
-    Inputs
-    ------
-    y_pred : tensor
-        (N, M), where M is the number of the observational data.
-
-    Outputs
-    -------
-        (N,).
     """
     def __init__(self, y_obs, bounds=(-2., 0.)):
         super().__init__(['sigma'], bounds)
@@ -112,6 +105,19 @@ class GaussianWithScatter(ErrorFunction):
 
 
     def forward(self, *args):
+        """
+        Parameters
+        ----------
+        y_pred : tensor
+            Predicted data. M is the number of the observational data.
+        log_sigma : tensor (1, N)
+            log intrinsic scatter (10 base).
+
+        Returns
+        -------
+        log_prob : tensor
+            log probability density or log error.
+        """
         y_pred, log_sigma = args
         sigma = 10**log_sigma
         delta = (y_pred - self.y_obs)/sigma
@@ -126,7 +132,7 @@ class Posterior(nn.Module):
     Parameters
     ----------
     sed_model : MultiwavelengthSED
-        SED model.
+        The target SED model.
     error_func : ErrorFunction
         Error function.
     """
@@ -195,6 +201,15 @@ class Posterior(nn.Module):
 
 
     def save_inference_state(self, fname, data):
+        """Save a inference state.
+    
+        Parameters
+        ----------
+        fname : str
+            Filename.
+        data : obj
+            Any data that is associated with the inference state.
+        """
         config_adapter = self.sed_model.adapter._get_config()
         config_detector = self.sed_model.detector._get_config()
         inference_state = InferenceState(self.error_func, config_adapter, config_detector, data)
@@ -202,6 +217,19 @@ class Posterior(nn.Module):
 
 
     def load_inference_state(self, target):
+        """Load a inference state.
+
+        Parameters
+        ----------
+        target : str or InferenceState
+            Load the error function and configure the corresponding SED model
+            according to the input.
+        
+        Returns
+        -------
+        data : obj
+            Saved data.
+        """
         if isinstance(target, InferenceState):
             inference_state = target
         else:
@@ -232,6 +260,20 @@ class Posterior(nn.Module):
 
 
 class InferenceState(nn.Module):
+    """A container that stores the error fucntion, configuration of the SED
+    model and associated data.
+
+    Parameters
+    ----------
+    error_func : ErrorFunction
+        Error function.
+    config_adapter : dict
+        A dictionary that stores the adapter configuration of the SED model.
+    config_detector : dict
+        A dictionary that stores the detector configuration of the SED model.
+    data : obj
+        Associated data.
+    """
     def __init__(self, error_func, config_adapter=None, config_detector=None, data=None):
         super().__init__()
         self.error_func = error_func
@@ -245,6 +287,17 @@ class InferenceState(nn.Module):
 
 
     def get_config(self):
+        """Give the adapter and detector configurations of the SED model.
+
+        Returns
+        -------
+        config_adapter : dict
+            A dictionary that stores the adapter configuration of the SED
+            model.
+        config_detector : dict
+            A dictionary that stores the detector configuration of the SED
+            model.
+        """
         config_adapter = {}
         config_detector = {}
         for name in dir(self):
@@ -300,7 +353,6 @@ def optimize(log_post, cls_opt, x0=None, n_step=1000, lr=1e-2, progress_bar=True
         If True, show a progress bar.
     **kwargs_opt
         Keyword arguments used to initalise the optimiser.
-
 
     Returns
     -------

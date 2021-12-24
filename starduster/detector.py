@@ -7,7 +7,7 @@ from torch import nn
 
 
 class Detector(nn.Module):
-    """Apply unit conversion and filters to the input fluxes.
+    """Apply filters to the input fluxes with unit conversion.
 
     Parameters
     ----------

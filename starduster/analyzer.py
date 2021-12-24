@@ -20,8 +20,8 @@ class Analyzer:
 
     Parameters
     ----------
-    target : MultiwavelengthSED or Posterior
-        A MultiwavelengthSED or Posterior instance.
+    target : MultiwavelengthSED
+        The target SED model.
     """
     def __init__(self, sed_model):
         self.sed_model = sed_model
@@ -31,6 +31,13 @@ class Analyzer:
 
 
     def list_available_properties(self):
+        """List properties that can be computed by this class.
+
+        Returns
+        -------
+        prop_names : list
+            Property names.
+        """
         prop_names = list(self.helper.header)
         for name, calc in self._calculators.items():
             if calc.is_separable:
@@ -41,14 +48,28 @@ class Analyzer:
 
 
     def compute_property_summary(self, params, prop_names):
+        """Compute properties given in the name list.
+
+        Parameters
+        ----------
+        params : tensor
+            Scaled parameters.
+        prop_names : list
+            Property names.
+
+        Returns
+        -------
+        summary : dict
+            Properties.
+        """
         gp_0, sfh_disk_0, sfh_bulge_0 = self.recover_params(params)
-        output = {}
+        summary = {}
         for name in prop_names:
-            if name in output:
+            if name in summary:
                 continue
 
             if name in self.helper.header:
-                output[name] = self.helper.get_item(gp_0, name)
+                summary[name] = self.helper.get_item(gp_0, name)
                 continue
 
             if name.endswith('_disk'):
@@ -74,24 +95,36 @@ class Analyzer:
                 raise ValueError
 
             if name_disk is None:
-                output[name] = calc(*args)
+                summary[name] = calc(*args)
             else:
                 if calc.is_separable:
                     # Always store the properties of both the disk and bulge
                     # components. The unwanted property will be deleted later.
-                    output[name_disk], output[name_bulge] = calc(*args, separate=True)
+                    summary[name_disk], summary[name_bulge] = calc(*args, separate=True)
                 else:
                     raise ValueError("{} is not separable.".format(name))
 
-        for out_name in list(output.keys()):
+        for out_name in list(summary.keys()):
             if out_name not in prop_names:
-                del output[out_name]
+                del summary[out_name]
         
-        return output
+        return summary
 
 
     @register_calculator('frac_abs', 'scaled_params', is_separable=False)
     def compute_absorption_fraction(self, params):
+        """Compute dust absorption fraction.
+
+        Parameters
+        ----------
+        params : tensor
+            Sscaled parameters.
+
+        Returns
+        -------
+        frac : tensor
+            Dust absorption fraction.
+        """
         with torch.no_grad():
             frac = self.sed_model.predict_absorption_fraction(params)
         return frac
@@ -118,6 +151,18 @@ class Analyzer:
 
     @register_calculator('r_dust', 'recovered_gp', is_separable=False)
     def compute_r_dust(self, gp_0):
+        """Compute dust disk radius.
+
+        Parameters
+        ----------
+        gp_0 : tensor
+            Recovered galaxy parameters.
+
+        Returns
+        ------
+        r_dust : tensor [kpc]
+            Dust disk radius.
+        """
         r_disk = self.helper.get_item(gp_0, 'r_disk')
         r_dust_to_rd = self.helper.get_item(gp_0, 'r_dust_to_rd')
         r_dust = r_disk*r_dust_to_rd
