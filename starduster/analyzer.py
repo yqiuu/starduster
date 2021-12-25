@@ -65,6 +65,9 @@ class Analyzer:
         gp_0, sfh_disk_0, sfh_bulge_0 = self.recover_params(params)
         summary = {}
         for name in prop_names:
+            if name not in self._calculators:
+                raise ValueError(f"No calculator for '{name}'.")
+
             if name in summary:
                 continue
 
@@ -92,17 +95,14 @@ class Analyzer:
             elif calc.input_type == 'scaled_params':
                 args = params,
             else:
-                raise ValueError
+                raise ValueError(f"Unknown input_type: {calc.input_type}.")
 
             if name_disk is None:
                 summary[name] = calc(*args)
             else:
-                if calc.is_separable:
-                    # Always store the properties of both the disk and bulge
-                    # components. The unwanted property will be deleted later.
-                    summary[name_disk], summary[name_bulge] = calc(*args, separate=True)
-                else:
-                    raise ValueError("{} is not separable.".format(name))
+                # Always store the properties of both the disk and bulge
+                # components. The unwanted property will be deleted later.
+                summary[name_disk], summary[name_bulge] = calc(*args, separate=True)
 
         for out_name in list(summary.keys()):
             if out_name not in prop_names:
