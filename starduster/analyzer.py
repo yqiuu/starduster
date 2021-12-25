@@ -65,14 +65,11 @@ class Analyzer:
         gp_0, sfh_disk_0, sfh_bulge_0 = self.recover_params(params)
         summary = {}
         for name in prop_names:
-            if name not in self._calculators:
-                raise ValueError(f"No calculator for '{name}'.")
-
-            if name in summary:
-                continue
-
             if name in self.helper.header:
                 summary[name] = self.helper.get_item(gp_0, name)
+                continue
+
+            if name in summary:
                 continue
 
             if name.endswith('_disk'):
@@ -87,7 +84,14 @@ class Analyzer:
                 name_disk = None
                 name_bulge = None
 
-            calc = self._calculators[name]
+            try:
+                calc = self._calculators[name]
+            except KeyError:
+                if name_disk is None:
+                    raise ValueError(f"No calculator for '{name}'.")
+                else:
+                    raise ValueError(f"No calculator for '{name_disk}' and '{name_bulge}'.")
+
             if calc.input_type == 'recovered_gp':
                 args = gp_0,
             elif calc.input_type == 'recovered_params':
