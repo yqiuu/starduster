@@ -47,7 +47,7 @@ class Analyzer:
         return prop_names
 
 
-    def compute_property_summary(self, params, prop_names):
+    def compute_property_summary(self, params, prop_names, output_type='numpy'):
         """Compute properties given in the name list.
 
         Parameters
@@ -95,7 +95,7 @@ class Analyzer:
             elif calc.input_type == 'scaled_params':
                 args = params,
             else:
-                raise ValueError(f"Unknown input_type: {calc.input_type}.")
+                raise ValueError(f"Unknown input_type: '{calc.input_type}'.")
 
             if name_disk is None:
                 summary[name] = calc(*args)
@@ -107,6 +107,13 @@ class Analyzer:
         for out_name in list(summary.keys()):
             if out_name not in prop_names:
                 del summary[out_name]
+
+            if output_type == 'numpy':
+                summary[out_name] = summary[out_name].numpy()
+            elif output_type == 'torch':
+                pass
+            else:
+                raise ValueError(f"Unknown output_type: '{output_type}'.")
         
         return summary
 
