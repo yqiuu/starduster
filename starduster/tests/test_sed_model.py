@@ -14,7 +14,7 @@ def test_sed_model():
     sed_model = create_sed_model()
     with torch.no_grad():
         spectra_test = sed_model(*params)
-    np.testing.assert_allclose(spectra_fid.numpy(), spectra_test.numpy())
+    np.testing.assert_allclose(spectra_fid.numpy(), spectra_test.numpy(), rtol=1e-4, atol=1e-4)
 
 
 def create_test_data():
