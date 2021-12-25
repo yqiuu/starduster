@@ -111,13 +111,13 @@ class Analyzer:
         for out_name in list(summary.keys()):
             if out_name not in prop_names:
                 del summary[out_name]
-
-            if output_type == 'numpy':
-                summary[out_name] = summary[out_name].numpy()
-            elif output_type == 'torch':
-                pass
             else:
-                raise ValueError(f"Unknown output_type: '{output_type}'.")
+                if output_type == 'numpy':
+                    summary[out_name] = summary[out_name].numpy()
+                elif output_type == 'torch':
+                    pass
+                else:
+                    raise ValueError(f"Unknown output_type: '{output_type}'.")
         
         return summary
 
