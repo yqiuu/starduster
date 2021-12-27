@@ -42,35 +42,41 @@ class Detector(nn.Module):
             return fluxes
 
 
-    def configure(self, filters=None, z=0., distmod=0., ab_mag=True):
+    def configure(self, filters=None, redshift=0., distmod=0., ab_mag=True):
         """Configure the output mode.
 
         Parameters
         ----------
         filters : sedpy.observate.Filter
             Output filters.
-        z : float
+        redshift : float
             Redshift.
         distmod : float
             Distance modulus.
         ab_mag : bool
             If ``True``, return AB magnitudes; otherwise return flux densities.
         """
-        lam = self.lam_base*(1 + z)
+        self._prepare_filters(filters, redshift)
+        self.dist_factor = 10**(-.4*distmod)
+        self.ab_mag = ab_mag
+        self._config = {
+            'filters': filters, 'redshift': redshift, 'distmod': distmod, 'ab_mag': ab_mag
+        }
+
+
+    def _prepare_filters(self, filters, redshift):
+        lam = self.lam_base*(1 + redshift)
         self.register_buffer('lam', lam)
         if filters is not None:
             trans_filter = np.zeros([len(filters), len(lam)])
             lam_pivot = np.zeros(len(filters))
             for i_f, ftr in enumerate(filters):
-                trans_filter[i_f], lam_pivot[i_f] = self._preprocess_filter(ftr, lam)
+                trans_filter[i_f], lam_pivot[i_f] = self._derive_filter_params(ftr, lam)
             self.register_buffer('trans_filter', torch.tensor(trans_filter, dtype=torch.float32))
             self.register_buffer('lam_pivot', torch.tensor(lam_pivot, dtype=torch.float32))
-        self.dist_factor = 10**(-.4*distmod)
-        self.ab_mag = ab_mag
-        self._config = {'filters': filters, 'z': z, 'distmod': distmod, 'ab_mag': ab_mag}
 
 
-    def _preprocess_filter(self, ftr, lam):
+    def _derive_filter_params(self, ftr, lam):
         ## The given flux and wavelength should be in L_sol and micrometer
         ## respectively.
         unit_lam = U.angstrom.to(U.micrometer)
