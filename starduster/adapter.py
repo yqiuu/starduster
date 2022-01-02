@@ -1,4 +1,4 @@
-from .utils import constants
+from .utils import Configurable, constants
 
 import pickle
 from bisect import bisect_left
@@ -9,7 +9,7 @@ from torch import nn
 from torch.nn import functional as F
 
 
-class Adapter(nn.Module):
+class Adapter(nn.Module, Configurable):
     """Apply different parametrisations to input parameters.
 
     Parameters
@@ -24,18 +24,37 @@ class Adapter(nn.Module):
         Selector of the bulge component.
     """
     def __init__(self, helper, lib_ssp, selector_disk=None, selector_bulge=None):
-        super().__init__()
         self.helper = helper
         self.lib_ssp = lib_ssp
+        nn.Module.__init__(self)
+        Configurable.__init__(self,
+            pset_gp=GalaxyParameter(self),
+            pset_sfh_disk=DiscreteSFH(self),
+            pset_sfh_bulge=DiscreteSFH(self),
+            flat_input=False,
+            check_sfh_norm=True,
+        )
         if selector_disk is not None:
             self.selector_disk = selector_disk
         if selector_bulge is not None:
             self.selector_bulge = selector_bulge
         self.register_buffer("_device", torch.tensor(0.), persistent=False)
-        self.configure(
-            GalaxyParameter(self), DiscreteSFH(self), DiscreteSFH(self),
-            flat_input=False, check_sfh_norm=True
-        )
+
+
+    def update_config(self):
+        free_shape = []
+        param_names = []
+        bounds = []
+        pset_names = ['pset_gp', 'pset_sfh_disk', 'pset_sfh_bulge']
+        for name in pset_names:
+            pset = getattr(self, name)
+            free_shape.append(pset.input_size)
+            param_names.extend(pset.param_names)
+            bounds.append(pset.bounds)
+        self.free_shape = free_shape
+        self.input_size = sum(self.free_shape)
+        self.param_names = param_names
+        self.bounds = np.vstack(bounds)
 
 
     def forward(self, *args, check_bounds=False):
@@ -66,49 +85,36 @@ class Adapter(nn.Module):
             return self._apply_pset(gp, sfh_disk, sfh_bulge)
 
 
-    def configure(
-        self, gp=None, sfh_disk=None, sfh_bulge=None, flat_input=None, check_sfh_norm=None
-    ):
-        """Configure the input mode.
-
-        Parameters
-        ----------
-        gp : ParameterSet
-            Parametrisation of the galaxy parameters.
-        sfh_disk : ParameterSet
-            Parametrisation of the disk star formation history.
-        sfh_bulge : ParameterSet
-            Parametrisation of the bulge star formation history.
-        flat_input : bool
-            If ``True``, assume the input array is flat.
-        check_sfh_norm : bool
-            If ``True``, raise an error when star formation history is not
-            normalised to one.
-        """
-        if gp is not None:
-            self.pset_gp = gp
-        if sfh_disk is not None:
-            self.pset_sfh_disk = sfh_disk
-        if sfh_bulge is not None:
-            self.pset_sfh_bulge = sfh_bulge
-        if flat_input is not None:
-            self.flat_input = flat_input
-        if check_sfh_norm is not None:
-            self.check_sfh_norm = check_sfh_norm
-        #
-        pset_names = ['pset_gp', 'pset_sfh_disk', 'pset_sfh_bulge']
-        free_shape = []
-        param_names = []
-        bounds = []
-        for name in pset_names:
-            pset = getattr(self, name)
-            free_shape.append(pset.input_size)
-            param_names.extend(pset.param_names)
-            bounds.append(pset.bounds)
-        self.free_shape = free_shape
-        self.input_size = sum(self.free_shape)
-        self.param_names = param_names
-        self.bounds = np.vstack(bounds)
+#    def configure(
+#        self, gp=None, sfh_disk=None, sfh_bulge=None, flat_input=None, check_sfh_norm=None
+#    ):
+#        """Configure the input mode.
+#
+#        Parameters
+#        ----------
+#        gp : ParameterSet
+#            Parametrisation of the galaxy parameters.
+#        sfh_disk : ParameterSet
+#            Parametrisation of the disk star formation history.
+#        sfh_bulge : ParameterSet
+#            Parametrisation of the bulge star formation history.
+#        flat_input : bool
+#            If ``True``, assume the input array is flat.
+#        check_sfh_norm : bool
+#            If ``True``, raise an error when star formation history is not
+#            normalised to one.
+#        """
+#        if gp is not None:
+#            self.pset_gp = gp
+#        if sfh_disk is not None:
+#            self.pset_sfh_disk = sfh_disk
+#        if sfh_bulge is not None:
+#            self.pset_sfh_bulge = sfh_bulge
+#        if flat_input is not None:
+#            self.flat_input = flat_input
+#        if check_sfh_norm is not None:
+#            self.check_sfh_norm = check_sfh_norm
+#        #
 
 
     def unflatten(self, params):
@@ -138,16 +144,6 @@ class Adapter(nn.Module):
             assert torch.allclose(sfh_bulge.sum(dim=-1), torch.tensor(1.), atol=1e-5), msg
 
         return gp, sfh_disk, sfh_bulge
-
-
-    def _get_config(self):
-        return {
-            'gp': self.pset_gp,
-            'sfh_disk' : self.pset_sfh_disk,
-            'sfh_bulge': self.pset_sfh_bulge,
-            'flat_input': self.flat_input,
-            'check_sfh_norm': self.check_sfh_norm,
-        }
 
 
 class ParameterSet(nn.Module):
@@ -408,7 +404,7 @@ class DiscreteSFR_InterpolatedMet(ParameterSet):
         weights = w0[:, None]*F.one_hot(inds - 1, n_interp) + w1[:, None]*F.one_hot(inds, n_interp)
         weights = torch.swapaxes(weights.reshape(-1, n_met, n_interp), 1, 2)
         return weights
-        
+
 
 class InterpolatedSFH(ParameterSet):
     """Star formation history obtained using the invserse distance weighted
@@ -453,7 +449,7 @@ class SemiAnalyticConventer:
         self.helper = sed_model.helper
         self.lib_ssp = sed_model.lib_ssp
         self._tau_matrix = self._create_tau_matrix(age_bins)
-        
+
 
     def __call__(self,
         theta, m_dust, r_dust, r_disk, r_bulge,
@@ -508,8 +504,8 @@ class SemiAnalyticConventer:
                 ValueError("Something wrong with the age bins.")
             matrix[i_step] = matrix_sub
         return matrix
-    
-    
+
+
     def _derive_sfh(self, sfh_mass, sfh_metal_mass):
         sfh_mass = np.matmul(sfh_mass, self._tau_matrix)
         sfh_metal_mass = np.matmul(sfh_metal_mass, self._tau_matrix)

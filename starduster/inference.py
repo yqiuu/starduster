@@ -202,7 +202,7 @@ class Posterior(nn.Module):
 
     def save_inference_state(self, fname, data):
         """Save a inference state.
-    
+
         Parameters
         ----------
         fname : str
@@ -210,8 +210,8 @@ class Posterior(nn.Module):
         data : obj
             Any data that is associated with the inference state.
         """
-        config_adapter = self.sed_model.adapter._get_config()
-        config_detector = self.sed_model.detector._get_config()
+        config_adapter = self.sed_model.adapter.get_config()
+        config_detector = self.sed_model.detector.get_config()
         inference_state = InferenceState(self.error_func, config_adapter, config_detector, data)
         torch.save(inference_state, fname)
 
@@ -224,7 +224,7 @@ class Posterior(nn.Module):
         target : str or InferenceState
             Load the error function and configure the corresponding SED model
             according to the input.
-        
+
         Returns
         -------
         data : obj

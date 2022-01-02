@@ -2,12 +2,41 @@ from collections import namedtuple
 
 import numpy as np
 import torch
+from torch import nn
 
 
 __all__ = [
     "constants", "units", "merge_history", "load_model", "search_inds",
     "reduction", "interp_arr", "accept_reject"
 ]
+
+
+class Configurable:
+    def __init__(self, **default_config):
+        self._config_names = list(default_config.keys())
+        self.set_config(**default_config)
+
+
+    def configure(self, **kwargs):
+        self.set_config(**kwargs)
+        self.update_config()
+
+
+    def get_config(self):
+        return {name: getattr(self, name) for name in self._config_names}
+
+
+    def set_config(self, **kwargs):
+        for key, val in kwargs.items():
+            if key in self._config_names:
+                setattr(self, key, val)
+            else:
+                raise ValueError(f"Unknow config: {key}.")
+
+
+    def update_config(self):
+        pass
+
 
 def namedtuple_from_dict(name, target):
     return namedtuple(name, target.keys())(**target)

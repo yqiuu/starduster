@@ -1,3 +1,5 @@
+from .utils import Configurable
+
 import numpy as np
 from astropy import units as U
 from astropy import constants
@@ -6,7 +8,7 @@ import torch
 from torch import nn
 
 
-class Detector(nn.Module):
+class Detector(nn.Module, Configurable):
     """Apply filters to the input fluxes with unit conversion.
 
     Parameters
@@ -15,11 +17,16 @@ class Detector(nn.Module):
         Wavelength of the input fluxes.
     """
     def __init__(self, lam):
-        super().__init__()
+        nn.Module.__init__(self)
+        Configurable.__init__(self, filters=None, redshift=0., distmod=0., ab_mag=True)
         self.register_buffer('lam', lam)
         self.lam_base = lam
-        self.configure()
         self._set_unit()
+
+
+    def update_config(self):
+        self._prepare_filters(self.filters, self.redshift)
+        self.dist_factor = 10**(-.4*self.distmod)
 
 
     def forward(self, l_target, return_ph, return_lum):
@@ -40,28 +47,6 @@ class Detector(nn.Module):
             return -2.5*torch.log10(fluxes) + 8.9
         else:
             return fluxes
-
-
-    def configure(self, filters=None, redshift=0., distmod=0., ab_mag=True):
-        """Configure the output mode.
-
-        Parameters
-        ----------
-        filters : sedpy.observate.Filter
-            Output filters.
-        redshift : float
-            Redshift.
-        distmod : float
-            Distance modulus.
-        ab_mag : bool
-            If ``True``, return AB magnitudes; otherwise return flux densities.
-        """
-        self._prepare_filters(filters, redshift)
-        self.dist_factor = 10**(-.4*distmod)
-        self.ab_mag = ab_mag
-        self._config = {
-            'filters': filters, 'redshift': redshift, 'distmod': distmod, 'ab_mag': ab_mag
-        }
 
 
     def _prepare_filters(self, filters, redshift):
@@ -98,8 +83,4 @@ class Detector(nn.Module):
         unit_f_nu = U.solLum/(4*np.pi*(10*U.parsec)**2)*U.micrometer/constants.c
         self.unit_f_nu = unit_f_nu.to(U.jansky).value
         self.unit_jansky = self.unit_f_nu
-
-
-    def _get_config(self):
-        return self._config
 
