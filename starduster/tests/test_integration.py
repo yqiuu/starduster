@@ -20,12 +20,15 @@ def test_integration():
     distmod= 0.
 
     sed_model = starduster.MultiwavelengthSED.from_builtin()
-    sed_model.configure_detector(filters, redshift=z_test, distmod=distmod, ab_mag=True)
-    sed_model.configure_adapter(
-        starduster.GalaxyParameter(sed_model, bounds={'b_to_t':(.1, .8)}),
-        starduster.InterpolatedSFH(sed_model),
-        starduster.InterpolatedSFH(sed_model),
+    sed_model.configure(
+        pset_gp=starduster.GalaxyParameter(sed_model, bounds={'b_to_t':(.1, .8)}),
+        pset_sfh_disk=starduster.InterpolatedSFH(sed_model),
+        pset_sfh_bulge=starduster.InterpolatedSFH(sed_model),
         flat_input=True,
+        filters=filters,
+        redshift=z_test,
+        distmod=distmod,
+        ab_mag=True,
     )
     # Create test data
     eps = 0.05

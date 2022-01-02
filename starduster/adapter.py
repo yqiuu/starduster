@@ -85,38 +85,6 @@ class Adapter(nn.Module, Configurable):
             return self._apply_pset(gp, sfh_disk, sfh_bulge)
 
 
-#    def configure(
-#        self, gp=None, sfh_disk=None, sfh_bulge=None, flat_input=None, check_sfh_norm=None
-#    ):
-#        """Configure the input mode.
-#
-#        Parameters
-#        ----------
-#        gp : ParameterSet
-#            Parametrisation of the galaxy parameters.
-#        sfh_disk : ParameterSet
-#            Parametrisation of the disk star formation history.
-#        sfh_bulge : ParameterSet
-#            Parametrisation of the bulge star formation history.
-#        flat_input : bool
-#            If ``True``, assume the input array is flat.
-#        check_sfh_norm : bool
-#            If ``True``, raise an error when star formation history is not
-#            normalised to one.
-#        """
-#        if gp is not None:
-#            self.pset_gp = gp
-#        if sfh_disk is not None:
-#            self.pset_sfh_disk = sfh_disk
-#        if sfh_bulge is not None:
-#            self.pset_sfh_bulge = sfh_bulge
-#        if flat_input is not None:
-#            self.flat_input = flat_input
-#        if check_sfh_norm is not None:
-#            self.check_sfh_norm = check_sfh_norm
-#        #
-
-
     def unflatten(self, params):
         params = torch.atleast_2d(params)
         params_out = [None]*len(self.free_shape)

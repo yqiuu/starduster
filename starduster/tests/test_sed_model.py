@@ -53,7 +53,7 @@ def create_sed_model():
     ]
     filters = sedpy.observate.load_filters(band_names)
     sed_model = starduster.MultiwavelengthSED.from_builtin()
-    sed_model.configure_detector(filters)
+    sed_model.configure(filters=filters)
     return sed_model
 
 

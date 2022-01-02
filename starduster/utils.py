@@ -14,7 +14,7 @@ __all__ = [
 class Configurable:
     def __init__(self, **default_config):
         self._config_names = list(default_config.keys())
-        self.set_config(**default_config)
+        self.configure(**default_config)
 
 
     def configure(self, **kwargs):

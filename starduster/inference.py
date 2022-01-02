@@ -235,9 +235,7 @@ class Posterior(nn.Module):
         else:
             inference_state = torch.load(target, self.sed_model.adapter.device)
         self.error_func = inference_state.error_func
-        config_adapter, config_detector = inference_state.get_config()
-        self.sed_model.configure_adapter(**config_adapter)
-        self.sed_model.configure_detector(**config_detector)
+        self.sed_model.configure(**inference_state.get_config())
         return inference_state.data
 
 
@@ -278,12 +276,14 @@ class InferenceState(nn.Module):
         super().__init__()
         self.error_func = error_func
         self.data = data
+        # Unpack the configuration. This is good if a property is an instance
+        # of nn.Module.
         if config_adapter is not None:
             for key, val in config_adapter.items():
-                setattr(self, 'adapter.' + key, val)
+                setattr(self, 'config.' + key, val)
         if config_detector is not None:
             for key, val in config_detector.items():
-                setattr(self, 'detector.' + key, val)
+                setattr(self, 'config.' + key, val)
 
 
     def get_config(self):
@@ -291,21 +291,14 @@ class InferenceState(nn.Module):
 
         Returns
         -------
-        config_adapter : dict
-            A dictionary that stores the adapter configuration of the SED
-            model.
-        config_detector : dict
-            A dictionary that stores the detector configuration of the SED
-            model.
+        config : dict
+            A dictionary that stores the configuration of the SED model.
         """
-        config_adapter = {}
-        config_detector = {}
+        config = {}
         for name in dir(self):
-            if 'adapter' in name:
-                config_adapter[name.replace('adapter.', '')] = getattr(self, name)
-            if 'detector' in name:
-                config_detector[name.replace('detector.', '')] = getattr(self, name)
-        return config_adapter, config_detector
+            if name.startswith('config.'):
+                config[name.replace('config.', '')] = getattr(self, name)
+        return config
 
 
 class OptimizerWrapper(nn.Module):

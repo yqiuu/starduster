@@ -18,9 +18,9 @@ class Detector(nn.Module, Configurable):
     """
     def __init__(self, lam):
         nn.Module.__init__(self)
-        Configurable.__init__(self, filters=None, redshift=0., distmod=0., ab_mag=True)
         self.register_buffer('lam', lam)
         self.lam_base = lam
+        Configurable.__init__(self, filters=None, redshift=0., distmod=0., ab_mag=True)
         self._set_unit()
 
 

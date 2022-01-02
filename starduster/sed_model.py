@@ -157,14 +157,44 @@ class MultiwavelengthSED(nn.Module):
         return torch.ravel(self.dust_emission(*self.adapter(*args))[-1])
 
 
-    @wraps(Adapter.configure, assigned=('__doc__',))
-    def configure_adapter(self, *args, **kwargs):
-        self.adapter.configure(*args, **kwargs)
+    def configure(self, **kwargs):
+        """Configure the input and output settings.
 
-    
-    @wraps(Detector.configure, assigned=('__doc__',))
-    def configure_detector(self, *args, **kwargs):
-        self.detector.configure(*args, **kwargs)
+        Parameters
+        ----------
+        pset_gp : ParameterSet
+            Parametrisation of the galaxy parameters.
+        pset_sfh_disk : ParameterSet
+            Parametrisation of the disk star formation history.
+        pset_sfh_bulge : ParameterSet
+            Parametrisation of the bulge star formation history.
+        flat_input : bool
+            If ``True``, assume the input array is flat.
+        check_sfh_norm : bool
+            If ``True``, raise an error when star formation history is not
+            normalised to one.
+        filters : sedpy.observate.Filter
+            Output filters.
+        redshift : float
+            Redshift.
+        distmod : float
+            Distance modulus.
+        ab_mag : bool
+            If ``True``, return AB magnitudes; otherwise return flux densities.
+        """
+        config_adapter = {}
+        names_adapter = list(self.adapter.get_config())
+        config_detector = {}
+        names_detector = list(self.detector.get_config())
+        for key, val in kwargs.items():
+            if key in names_adapter:
+                config_adapter[key] = val
+            elif key in names_detector:
+                config_detector[key] = val
+            else:
+                raise ValueError(f"Unknow config: {key}.")
+        self.adapter.configure(**config_adapter)
+        self.detector.configure(**config_detector)
 
 
     @property
