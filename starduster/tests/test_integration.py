@@ -21,9 +21,9 @@ def test_integration():
 
     sed_model = starduster.MultiwavelengthSED.from_builtin()
     sed_model.configure(
-        pset_gp=starduster.GalaxyParameter(sed_model, bounds={'b_to_t':(.1, .8)}),
-        pset_sfh_disk=starduster.InterpolatedSFH(sed_model),
-        pset_sfh_bulge=starduster.InterpolatedSFH(sed_model),
+        pset_gp=starduster.GalaxyParameter(bounds={'b_to_t':(.1, .8)}),
+        pset_sfh_disk=starduster.InterpolatedSFH(),
+        pset_sfh_bulge=starduster.InterpolatedSFH(),
         flat_input=True,
         filters=filters,
         redshift=z_test,

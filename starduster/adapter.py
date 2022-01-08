@@ -28,9 +28,9 @@ class Adapter(nn.Module, Configurable):
         self.lib_ssp = lib_ssp
         nn.Module.__init__(self)
         Configurable.__init__(self,
-            pset_gp=GalaxyParameter(self),
-            pset_sfh_disk=DiscreteSFH(self),
-            pset_sfh_bulge=DiscreteSFH(self),
+            pset_gp=GalaxyParameter(),
+            pset_sfh_disk=DiscreteSFH(),
+            pset_sfh_bulge=DiscreteSFH(),
             flat_input=False,
             check_sfh_norm=True,
         )
@@ -45,12 +45,12 @@ class Adapter(nn.Module, Configurable):
         free_shape = []
         param_names = []
         bounds = []
-        pset_names = ['pset_gp', 'pset_sfh_disk', 'pset_sfh_bulge']
-        for name in pset_names:
-            pset = getattr(self, name)
-            free_shape.append(pset.input_size)
-            param_names.extend(pset.param_names)
-            bounds.append(pset.bounds)
+        for name, pset in self.get_config().items():
+            if name.startswith('pset'):
+                pset.enable(self.helper, self.lib_ssp)
+                free_shape.append(pset.input_size)
+                param_names.extend(pset.param_names)
+                bounds.append(pset.bounds)
         self.free_shape = free_shape
         self.input_size = sum(self.free_shape)
         self.param_names = param_names
@@ -122,8 +122,20 @@ class ParameterSet(nn.Module):
         If true, when an input value is beyond a bound, set it to be the same
         with the bound.
     """
-    def __init__(self, param_names, fixed_params, bounds_default, bounds, clip_bounds):
+    def __init__(self, *args):
         super().__init__()
+        self._args = args
+
+
+    def enable(self, helper, lib_ssp):
+        self._init_info(*self.init(helper, lib_ssp, self._args))
+
+
+    def init(self, helper, lib_ssp, init_args):
+        pass
+
+    
+    def _init_info(self, param_names, fixed_params, bounds_default, bounds, clip_bounds):
         params_default, free_inds = self._derive_default_params(param_names, fixed_params)
         self._update_bounds(param_names, bounds_default, bounds)
         self.register_buffer('params_default', params_default)
@@ -147,9 +159,36 @@ class ParameterSet(nn.Module):
         self.clip_bounds = clip_bounds
 
 
+    def _derive_default_params(self, param_names, fixed_params):
+        params_default = torch.zeros(len(param_names))
+        free_inds = []
+        for i_k, key in enumerate(param_names):
+            if key in fixed_params:
+                params_default[i_k] = fixed_params[key]
+            else:
+                free_inds.append(i_k)
+        return params_default, free_inds
+
+
+    def _update_bounds(self, param_names, bounds_default, bounds):
+        if bounds is None:
+            return
+
+        for i_k, key in enumerate(param_names):
+            if key in bounds:
+                lb, ub = bounds_default[i_k]
+                lb_new, ub_new = bounds[key]
+                if lb_new >= lb and ub_new <= ub:
+                    bounds_default[i_k] = (lb_new, ub_new)
+                else:
+                    msg = "The bounds of {} should be within [{:.2f}, {:.2f}]".format(key, lb, ub)
+                    raise ValueError(msg)
+
+
     def forward(self, params):
         params = self._clip_bounds(params)
-        params = self.derive_full_params(self.set_fixed_params(params))
+        params = self.set_fixed_params(params)
+        params = self.derive_full_params(params)
         return params
 
 
@@ -171,17 +210,6 @@ class ParameterSet(nn.Module):
         return params
 
 
-    def _derive_default_params(self, param_names, fixed_params):
-        params_default = torch.zeros(len(param_names))
-        free_inds = []
-        for i_k, key in enumerate(param_names):
-            if key in fixed_params:
-                params_default[i_k] = fixed_params[key]
-            else:
-                free_inds.append(i_k)
-        return params_default, free_inds
-
-
     def _clip_bounds(self, params):
         if self.clip_bounds:
             eps = 1e-6
@@ -189,21 +217,6 @@ class ParameterSet(nn.Module):
             params = F.hardtanh(params, -1 + eps, 1 - eps)
             params = self.bound_radius*params + self.bound_centre
         return params
-
-
-    def _update_bounds(self, param_names, bounds_default, bounds):
-        if bounds is None:
-            return
-
-        for i_k, key in enumerate(param_names):
-            if key in bounds:
-                lb, ub = bounds_default[i_k]
-                lb_new, ub_new = bounds[key]
-                if lb_new >= lb and ub_new <= ub:
-                    bounds_default[i_k] = (lb_new, ub_new)
-                else:
-                    msg = "The bounds of {} should be within [{:.2f}, {:.2f}]".format(key, lb, ub)
-                    raise ValueError(msg)
 
 
 class GalaxyParameter(ParameterSet):
@@ -222,8 +235,12 @@ class GalaxyParameter(ParameterSet):
         A dictionary to specify fixed parameters. Use the name of the parameter
         as the key.
     """
-    def __init__(self, sed_model, bounds=None, clip_bounds=True, **fixed_params):
-        helper = sed_model.helper
+    def __init__(self, bounds=None, clip_bounds=True, **fixed_params):
+        super().__init__(bounds, clip_bounds, fixed_params)
+
+
+    def init(self, helper, lib_ssp, init_args):
+        bounds, clip_bounds, fixed_params = init_args
         param_names = helper.header.keys()
         bounds_default = [(-1., 1.)]*len(helper.header)
         # Transform the parameters
@@ -238,7 +255,7 @@ class GalaxyParameter(ParameterSet):
         # Transform the parameters
         for key, val in fixed_params.items():
             fixed_params[key] = helper.transform(val, key)
-        super().__init__(param_names, fixed_params, bounds_default, bounds, clip_bounds)
+        return param_names, fixed_params, bounds_default, bounds, clip_bounds
 
 
 class DiscreteSFH(ParameterSet):
@@ -260,14 +277,15 @@ class DiscreteSFH(ParameterSet):
         A dictionary to specify fixed parameters. Use the name of the parameter
         as the key.
     """
-    def __init__(self,
-        sed_model, simplex_transform=False, bounds=None, clip_bounds=True, **fixed_params
-    ):
-        lib_ssp = sed_model.lib_ssp
-        self.simplex_transform = simplex_transform
+    def __init__(self, simplex_transform=False, bounds=None, clip_bounds=True, **fixed_params):
+        super().__init__(simplex_transform, bounds, clip_bounds, fixed_params)
+
+
+    def init(self, helper, lib_ssp, init_args):
+        self.simplex_transform , bounds, clip_bounds, fixed_params = init_args
         param_names = [f'sfr_{i_sfr}' for i_sfr in range(lib_ssp.n_ssp)]
         bounds_default = [(0., 1.)]*lib_ssp.n_ssp
-        super().__init__(param_names, fixed_params, bounds_default, bounds, clip_bounds)
+        return param_names, fixed_params, bounds_default, bounds, clip_bounds
 
 
     def derive_full_params(self, params):
@@ -305,16 +323,21 @@ class DiscreteSFR_InterpolatedMet(ParameterSet):
     # TODO: Add functions to make sure that the SFH is normalised to one.
     # Handle the situation where there are only two SFR bins.
     def __init__(self,
-        sed_model, sfr_bins=None, uni_met=False, simplex_transform=False,
+        sfr_bins=None, uni_met=False, simplex_transform=False,
         bounds=None, clip_bounds=True, **fixed_params
     ):
-        lib_ssp = sed_model.lib_ssp
+        super().__init__(sfr_bins, uni_met, simplex_transform, bounds, clip_bounds, **fixed_params)
+
+
+    def init(self, helper, lib_ssp, init_args):
+        sfr_bins, uni_met, simplex_transform, bounds, clip_bounds, fixed_params = init_args
         self.n_tau_ssp = lib_ssp.n_tau
         if sfr_bins is None:
             n_sfr = lib_ssp.n_tau
         else:
             n_sfr = len(sfr_bins)
         self.sfr_bins = sfr_bins
+        self.n_sfr = n_sfr
         self.simplex_transform = simplex_transform
 
         log_met = torch.log10(lib_ssp.met/constants.met_sol)
@@ -327,9 +350,8 @@ class DiscreteSFR_InterpolatedMet(ParameterSet):
             param_names = [f'sfr_{i_sfr}' for i_sfr in range(n_sfr)] \
                 + [f'log_met_{i_sfr}' for i_sfr in range(n_sfr)]
             bounds_default = np.array([(0., 1.)]*n_sfr + [(log_met_min, log_met_max)]*n_sfr)
-        super().__init__(param_names, fixed_params, bounds_default, bounds, clip_bounds)
         self.register_buffer('log_met', log_met)
-        self.n_sfr = n_sfr
+        return param_names, fixed_params, bounds_default, bounds, clip_bounds
 
 
     def derive_full_params(self, params):
@@ -381,17 +403,21 @@ class InterpolatedSFH(ParameterSet):
         A dictionary to specify fixed parameters. Use the name of the parameter
         as the key.
     """
-    def __init__(self, sed_model, bounds=None, clip_bounds=True, **fixed_params):
-        lib_ssp = sed_model.lib_ssp
+    def __init__(self, bounds=None, clip_bounds=True, **fixed_params):
+        super().__init__(bounds, clip_bounds, fixed_params)
+
+
+    def init(self, helper, lib_ssp, init_args):
+        bounds, clip_bounds, fixed_params = self._args
         log_met = torch.log10(lib_ssp.met/constants.met_sol)
         log_tau = torch.log10(lib_ssp.tau)
         param_names = ['log_met', 'log_tau']
         bounds_default = np.asarray([
             (log_met[0].item(), log_met[-1].item()), (log_tau[0].item(),log_tau[-1].item()),
         ])
-        super().__init__(param_names, fixed_params, bounds_default, bounds, clip_bounds)
         self.register_buffer('log_met', log_met)
         self.register_buffer('log_tau', log_tau)
+        return param_names, fixed_params, bounds_default, bounds, clip_bounds
 
 
     def derive_full_params(self, params):
