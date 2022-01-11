@@ -105,37 +105,15 @@ class Adapter(nn.Module, Configurable):
 
 
 class ParameterSet(nn.Module):
-    """Base class for a parameter set.
-
-    Parameters
-    ----------
-    param_names : list
-        List of parameter names.
-    fixed_params : dict
-        A dictionary to specify fixed parameters. Use the name of the parameter
-        as the key.
-    bounds_default : array
-        An array of (min, max) to specify the default bounds of the parameters.
-    bounds : array
-        An array of (min, max) to specify the working bounds of the parameters.
-    clip_bounds : bool
-        If true, when an input value is beyond a bound, set it to be the same
-        with the bound.
-    """
+    """Base class for a parameter set."""
     def __init__(self, *args):
         super().__init__()
         self._args = args
 
 
     def enable(self, helper, lib_ssp):
-        self._init_info(*self.init(helper, lib_ssp, self._args))
-
-
-    def init(self, helper, lib_ssp, init_args):
-        pass
-
-    
-    def _init_info(self, param_names, fixed_params, bounds_default, bounds, clip_bounds):
+        param_names, fixed_params, bounds_default, bounds, clip_bounds \
+            = self.init(helper, lib_ssp, self._args)
         params_default, free_inds = self._derive_default_params(param_names, fixed_params)
         self._update_bounds(param_names, bounds_default, bounds)
         self.register_buffer('params_default', params_default)
@@ -157,6 +135,27 @@ class ParameterSet(nn.Module):
             self.register_buffer('bound_centre', .5*(ubounds + lbounds))
             self.bounds = bounds
         self.clip_bounds = clip_bounds
+
+
+    def init(self, helper, lib_ssp, args):
+        """
+        Returns
+        -------
+        param_names : list
+            List of parameter names.
+        fixed_params : dict
+            A dictionary to specify fixed parameters. Use the name of the parameter
+            as the key.
+        bounds_default : array
+            An array of (min, max) to specify the default bounds of the parameters.
+        bounds : array
+            An array of (min, max) to specify the working bounds of the parameters.
+        clip_bounds : bool
+            If true, when an input value is beyond a bound, set it to be the same
+            with the bound.
+        """
+        # return param_names, fixed_params, bounds_default, bounds, clip_bounds
+        pass
 
 
     def _derive_default_params(self, param_names, fixed_params):
@@ -239,8 +238,8 @@ class GalaxyParameter(ParameterSet):
         super().__init__(bounds, clip_bounds, fixed_params)
 
 
-    def init(self, helper, lib_ssp, init_args):
-        bounds, clip_bounds, fixed_params = init_args
+    def init(self, helper, lib_ssp, args):
+        bounds, clip_bounds, fixed_params = args
         param_names = helper.header.keys()
         bounds_default = [(-1., 1.)]*len(helper.header)
         # Transform the parameters
@@ -281,8 +280,8 @@ class DiscreteSFH(ParameterSet):
         super().__init__(simplex_transform, bounds, clip_bounds, fixed_params)
 
 
-    def init(self, helper, lib_ssp, init_args):
-        self.simplex_transform , bounds, clip_bounds, fixed_params = init_args
+    def init(self, helper, lib_ssp, args):
+        self.simplex_transform , bounds, clip_bounds, fixed_params = args
         param_names = [f'sfr_{i_sfr}' for i_sfr in range(lib_ssp.n_ssp)]
         bounds_default = [(0., 1.)]*lib_ssp.n_ssp
         return param_names, fixed_params, bounds_default, bounds, clip_bounds
@@ -293,6 +292,25 @@ class DiscreteSFH(ParameterSet):
             return simplex_transform(params)
         else:
             return params
+
+
+class CompositeGrid(ParameterSet):
+    def __init__(self, sfh_model, mh_model):
+        super().__init__(sfh_model, mh_model)
+
+
+    def init(self, helper, lib_ssp, args):
+        sfh_model, mh_model, bounds, clip_bounds = args
+        param_names = sfh_model.param_names + mh_model.param_names
+        fixed_params = {**sfh_model.fixed_params, **mh_model.fixed_params}
+        bounds_default = np.vstack([sfh_model.bounds, mh_model.bounds])
+        return param_names, fixed_params, bounds_default, bounds, clip_bounds
+
+
+    def forward(self, params):
+        sfh = self.sfh_model.derive(params)
+        mh = self.mh_model.derive(params, sfh)
+        return torch.flatten(sfh[:, None, :]*mh[:, :, None], start_dim=1)
 
 
 class DiscreteSFR_InterpolatedMet(ParameterSet):
@@ -329,8 +347,8 @@ class DiscreteSFR_InterpolatedMet(ParameterSet):
         super().__init__(sfr_bins, uni_met, simplex_transform, bounds, clip_bounds, **fixed_params)
 
 
-    def init(self, helper, lib_ssp, init_args):
-        sfr_bins, uni_met, simplex_transform, bounds, clip_bounds, fixed_params = init_args
+    def init(self, helper, lib_ssp, args):
+        sfr_bins, uni_met, simplex_transform, bounds, clip_bounds, fixed_params = args
         self.n_tau_ssp = lib_ssp.n_tau
         if sfr_bins is None:
             n_sfr = lib_ssp.n_tau
@@ -407,8 +425,8 @@ class InterpolatedSFH(ParameterSet):
         super().__init__(bounds, clip_bounds, fixed_params)
 
 
-    def init(self, helper, lib_ssp, init_args):
-        bounds, clip_bounds, fixed_params = self._args
+    def init(self, helper, lib_ssp, args):
+        bounds, clip_bounds, fixed_params = args
         log_met = torch.log10(lib_ssp.met/constants.met_sol)
         log_tau = torch.log10(lib_ssp.tau)
         param_names = ['log_met', 'log_tau']
