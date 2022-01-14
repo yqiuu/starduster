@@ -353,9 +353,25 @@ class DiscreteSFH(SFHComponent):
 
 
     def derive(self, params):
+        # (N, *) -> (N, N_age)
         if self.simplex_transform:
             params = simplex_transform(params)
         return params
+
+
+class InterpolatedSFH(SFHComponent):
+    def _init(self, lib_ssp, *args):
+        log_tau = torch.log10(lib_ssp.tau)
+        self.register_buffer('log_tau', log_tau)
+        param_names = ['log_tau']
+        bounds_default = np.array([[log_tau[0].item(),log_tau[-1].item()]])
+        return param_names, bounds_default
+
+
+    def derive(self, params):
+        # (N, 1) -> (N, N_age)
+        params = params.contiguous()
+        return torch.squeeze(compute_interp_weights(params, self.log_tau))
 
 
 class InterpolatedMH(SFHComponent):
@@ -465,48 +481,6 @@ class DiscreteSFR_InterpolatedMet(ParameterSet):
         weights = w0[:, None]*F.one_hot(inds - 1, n_interp) + w1[:, None]*F.one_hot(inds, n_interp)
         weights = torch.swapaxes(weights.reshape(-1, n_met, n_interp), 1, 2)
         return weights
-
-
-class InterpolatedSFH(ParameterSet):
-    """Star formation history obtained using the invserse distance weighted
-    interpolation. Stellar age and metallicity are interpolated independently.
-
-    Parameters
-    ----------
-    sed_model : MultiwavelengthSED
-        The target SED model.
-    bounds : array
-        An array of (min, max) to specify the working bounds of the parameters.
-    clip_bounds : bool
-        If true, when an input value is beyond a bound, set it to be the same
-        with the bound.
-    fixed_params : dict
-        A dictionary to specify fixed parameters. Use the name of the parameter
-        as the key.
-    """
-    def __init__(self, bounds=None, clip_bounds=True, **fixed_params):
-        super().__init__(bounds, clip_bounds, fixed_params)
-
-
-    def init(self, helper, lib_ssp, args):
-        bounds, clip_bounds, fixed_params = args
-        log_met = torch.log10(lib_ssp.met/constants.met_sol)
-        log_tau = torch.log10(lib_ssp.tau)
-        param_names = ['log_met', 'log_tau']
-        bounds_default = np.asarray([
-            (log_met[0].item(), log_met[-1].item()), (log_tau[0].item(),log_tau[-1].item()),
-        ])
-        self.register_buffer('log_met', log_met)
-        self.register_buffer('log_tau', log_tau)
-        return param_names, fixed_params, bounds_default, bounds, clip_bounds
-
-
-    def derive_full_params(self, params):
-        eps = 1e-6
-        log_met, log_tau = params.T
-        w_met = torch.swapaxes(compute_interp_weights(log_met[:, None], self.log_met), 1, 2)
-        w_tau = compute_interp_weights(log_tau[:, None], self.log_tau)
-        return torch.flatten(w_met*w_tau, start_dim=1)
 
 
 class SemiAnalyticConventer:
