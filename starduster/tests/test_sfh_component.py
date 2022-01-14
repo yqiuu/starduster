@@ -49,3 +49,20 @@ def test_mh(target):
         or mh.size() == torch.Size((n_samp, lib_ssp.n_met, lib_ssp.n_tau))
     testing.assert_allclose(torch.sum(mh, dim=(1, 2)).numpy(), 1.)
 
+
+def test_discrete_sfh_raises():
+    # Test whether DiscreteSFH can find invalid sfh_bins
+    torch.set_num_threads(1)
+    lib_ssp = starduster.SSPLibrary.from_builtin()
+
+    def init_sfh(sfh_bins):
+        starduster.DiscreteSFH(sfh_bins).enable(lib_ssp)
+    
+    # Indices must be within [0, n_tau]
+    testing.assert_raises(AssertionError, init_sfh, [(1, lib_ssp.n_tau + 5)])
+    testing.assert_raises(AssertionError, init_sfh, [(-2, 1)])
+    # Avoid flips 
+    testing.assert_raises(AssertionError, init_sfh, [(2, 1)])
+    # Avoid overlaps
+    testing.assert_raises(AssertionError, init_sfh, [(0, 2), (1, 3)])
+

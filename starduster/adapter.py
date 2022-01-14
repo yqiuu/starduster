@@ -349,7 +349,9 @@ class DiscreteSFH(SFHComponent):
         if sfh_bins is None:
             n_sfh = n_tau
         else:
+            self._check_sfh_bins(sfh_bins, n_tau)
             n_sfh = len(sfh_bins)
+
         if n_sfh == 1:
             param_names = []
             bounds_default = np.zeros((0, 2))
@@ -369,6 +371,16 @@ class DiscreteSFH(SFHComponent):
         self.n_tau_ssp = n_tau
         self.n_sfh = n_sfh
         return param_names, bounds_default
+
+
+    def _check_sfh_bins(self, sfh_bins, n_tau):
+        idx_prev = -1
+        for idx_b, idx_e in sfh_bins:
+            assert idx_b >= 0 and idx_e >= 0 and idx_b <= n_tau and idx_e <= n_tau, \
+                f"Indices of 'sfh_bins' must be within [0, {n_tau}]."
+            assert idx_b < idx_e, f"Invalid 'sfh_bins': [{idx_b}, {idx_e}]."
+            assert idx_b >= idx_prev, "'sfh_bins' must not have overlaps."
+            idx_prev = idx_e
 
 
     def derive(self, params):
