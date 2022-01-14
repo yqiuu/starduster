@@ -340,23 +340,57 @@ class SFHComponent(nn.Module):
 
 
 class DiscreteSFH(SFHComponent):
-    def __init__(self, simplex_transform=False):
-        super().__init__(simplex_transform)
+    def __init__(self, sfh_bins=None, simplex_transform=False):
+        super().__init__(sfh_bins, simplex_transform)
 
 
-    def _init(self, lib_ssp, simplex_transform):
-        self.simplex_transform = simplex_transform
+    def _init(self, lib_ssp, sfh_bins, simplex_transform):
         n_tau = lib_ssp.n_tau
-        param_names = [f'sfr_{i_sfr}' for i_sfr in range(n_tau)]
-        bounds_default = np.tile((0., 1.), (n_tau, 1))
+        if sfh_bins is None:
+            n_sfh = n_tau
+        else:
+            n_sfh = len(sfh_bins)
+        if n_sfh == 1:
+            param_names = []
+            bounds_default = np.zeros((0, 2))
+        elif n_sfh == 2:
+            # There is one degree of freedom in this case due to the
+            # normalisation condition
+            param_names = ['c_0']
+            bounds_default = np.array([0., 1.])
+        elif n_sfh > 2:
+            param_names = [f'c_{i_sfh}' for i_sfh in range(n_sfh)]
+            bounds_default = np.tile((0., 1.), (n_sfh, 1))
+        else:
+            raise ValueError("Invalid 'sfh_bins'.")
+
+        self.simplex_transform = simplex_transform
+        self.sfh_bins = sfh_bins
+        self.n_tau_ssp = n_tau
+        self.n_sfh = n_sfh
         return param_names, bounds_default
 
 
     def derive(self, params):
         # (N, *) -> (N, N_age)
-        if self.simplex_transform:
+        if self.simplex_transform and self.n_sfh > 2:
             params = simplex_transform(params)
-        return params
+        if self.sfh_bins is None:
+            sfh = params
+        else:
+            sfh = torch.zeros([params.size(0), self.n_tau_ssp],
+                dtype=params.dtype, layout=params.layout, device=params.device)
+            if self.n_sfh == 1:
+                idx_b, idx_e = self.sfh_bins[0]
+                sfh[:, idx_b:idx_e] = 1./(idx_e - idx_b)
+            elif self.n_sfh == 2:
+                (idx_b_0, idx_e_0), (idx_b_1, idx_e_1) = self.sfh_bins
+                sfh[:, idx_b_0:idx_e_0] = params/(idx_e_0 - idx_b_0)
+                sfh[:, idx_b_1:idx_e_1] = (1 - params)/(idx_e_1 - idx_b_1)
+            else:
+                for i_bin, (idx_b, idx_e) in enumerate(self.sfh_bins):
+                    sfh[:, idx_b:idx_e] = params[:, i_bin, None]/(idx_e - idx_b)
+        return sfh
 
 
 class InterpolatedSFH(SFHComponent):
