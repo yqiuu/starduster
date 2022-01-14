@@ -29,8 +29,8 @@ class Adapter(nn.Module, Configurable):
         nn.Module.__init__(self)
         Configurable.__init__(self,
             pset_gp=GalaxyParameter(),
-            pset_sfh_disk=DiscreteSFH(),
-            pset_sfh_bulge=DiscreteSFH(),
+            pset_sfh_disk=VanillaGrid(),
+            pset_sfh_bulge=VanillaGrid(),
             flat_input=False,
             check_sfh_norm=True,
         )
@@ -257,7 +257,7 @@ class GalaxyParameter(ParameterSet):
         return param_names, fixed_params, bounds_default, bounds, clip_bounds
 
 
-class DiscreteSFH(ParameterSet):
+class VanillaGrid(ParameterSet):
     """Discrete star formation history.
 
     Parameters
@@ -295,22 +295,85 @@ class DiscreteSFH(ParameterSet):
 
 
 class CompositeGrid(ParameterSet):
-    def __init__(self, sfh_model, mh_model):
-        super().__init__(sfh_model, mh_model)
+    def __init__(self, sfh_model, mh_model, bounds=None, clip_bounds=True, **fixed_params):
+        super().__init__(sfh_model, mh_model, bounds, clip_bounds, fixed_params)
 
 
     def init(self, helper, lib_ssp, args):
-        sfh_model, mh_model, bounds, clip_bounds = args
-        param_names = sfh_model.param_names + mh_model.param_names
-        fixed_params = {**sfh_model.fixed_params, **mh_model.fixed_params}
-        bounds_default = np.vstack([sfh_model.bounds, mh_model.bounds])
+        sfh_model, mh_model, bounds, clip_bounds, fixed_params = args
+        param_names_sfh, bounds_default_sfh = sfh_model.enable(lib_ssp)
+        param_names_mh, bounds_default_mh = mh_model.enable(lib_ssp)
+        param_names = param_names_sfh + param_names_mh
+        bounds_default = np.vstack([bounds_default_sfh, bounds_default_mh])
+        self.split_size = (len(param_names_sfh), len(param_names_mh))
+        self.sfh_model = sfh_model
+        self.mh_model = mh_model
         return param_names, fixed_params, bounds_default, bounds, clip_bounds
 
 
-    def forward(self, params):
-        sfh = self.sfh_model.derive(params)
-        mh = self.mh_model.derive(params, sfh)
-        return torch.flatten(sfh[:, None, :]*mh[:, :, None], start_dim=1)
+    def derive_full_params(self, params):
+        params_sfh, params_mh = torch.split(params, self.split_size, dim=1)
+        sfh = self.sfh_model.derive(params_sfh)
+        mh = self.mh_model.derive(params_mh, sfh)
+        return torch.flatten(sfh[:, None, :]*mh, start_dim=1)
+
+
+class SFHComponent(nn.Module):
+    def __init__(self, *args):
+        super().__init__()
+        self._args = args
+
+
+    def enable(self, lib_ssp):
+        param_names, bounds_default = self._init(lib_ssp, *self._args)
+        self._args = None
+        return param_names, bounds_default
+
+
+    def _init(self, lib_ssp, *args):
+        # return param_names, bounds_default
+        pass
+
+
+    def derive(self, *args):
+        pass
+
+
+class DiscreteSFH(SFHComponent):
+    def __init__(self, simplex_transform=False):
+        super().__init__(simplex_transform)
+
+
+    def _init(self, lib_ssp, simplex_transform):
+        self.simplex_transform = simplex_transform
+        n_tau = lib_ssp.n_tau
+        param_names = [f'sfr_{i_sfr}' for i_sfr in range(n_tau)]
+        bounds_default = np.tile((0., 1.), (n_tau, 1))
+        return param_names, bounds_default
+
+
+    def derive(self, params):
+        if self.simplex_transform:
+            params = simplex_transform(params)
+        return params
+
+
+class InterpolatedMH(SFHComponent):
+    def _init(self, lib_ssp, *args):
+        n_met = len(lib_ssp.met)
+        log_met = torch.log10(lib_ssp.met/constants.met_sol)
+        self.register_buffer('log_met', log_met)
+        #param_names = [f'log_met_{i_met}' for i_met in range(n_met)]
+        #bounds_default = np.tile((log_met[0].item(), log_met[-1].item()), (n_met, 1))
+        param_names = ['log_met']
+        bounds_default = np.array([[log_met[0].item(), log_met[-1].item()]])
+        return param_names, bounds_default
+
+
+    def derive(self, params, sfh):
+        # params (N, *) -> (N, N_met, N_age)
+        params = params.contiguous()
+        return torch.swapaxes(compute_interp_weights(params, self.log_met), 1, 2)
 
 
 class DiscreteSFR_InterpolatedMet(ParameterSet):
@@ -344,7 +407,7 @@ class DiscreteSFR_InterpolatedMet(ParameterSet):
         sfr_bins=None, uni_met=False, simplex_transform=False,
         bounds=None, clip_bounds=True, **fixed_params
     ):
-        super().__init__(sfr_bins, uni_met, simplex_transform, bounds, clip_bounds, **fixed_params)
+        super().__init__(sfr_bins, uni_met, simplex_transform, bounds, clip_bounds, fixed_params)
 
 
     def init(self, helper, lib_ssp, args):
