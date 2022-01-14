@@ -405,7 +405,7 @@ class InterpolatedSFH(SFHComponent):
     def derive(self, params):
         # (N, 1) -> (N, N_age)
         params = params.contiguous()
-        return torch.squeeze(compute_interp_weights(params, self.log_tau))
+        return torch.squeeze(compute_interp_weights(params, self.log_tau), dim=1)
 
 
 class InterpolatedMH(SFHComponent):
