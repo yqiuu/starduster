@@ -310,7 +310,6 @@ class SFHComponent(nn.Module):
             A simple stellar population library.
         """
         param_names, bounds_default = self._init(lib_ssp, *self._args)
-        self._args = None
         return param_names, bounds_default
 
 
