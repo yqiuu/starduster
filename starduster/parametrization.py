@@ -493,11 +493,11 @@ class SemiAnalyticConventer:
         sfh_mass_disk : array [M_sol]
             Gross stellar mass of the stellar disk in each age bin.
         sfh_metal_mass_disk : array [M_sol]
-            Gross metal mass of the stellar disk in each age bin.
+            Metal mass of the stellar disk in each age bin.
         sfh_mass_bulge : array [M_sol]
             Gross stellar mass of the stellar bulge in each age bin.
         sfh_metal_mass_bulge : array [M_sol]
-            Gross metal mass of the stellar bulge in each age bin.
+            Metal mass of the stellar bulge in each age bin.
 
         Returns
         -------

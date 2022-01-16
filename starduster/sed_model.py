@@ -105,7 +105,7 @@ class MultiwavelengthSED(nn.Module):
         sfh_disk : tensor
             Star formation history of the disk component.
         sfh_bulge : tensor
-            Star forward history of the bulge component.
+            Star formation history of the bulge component.
         return_ph : bool
             If ``True``, apply filters to outputs.
         return_lum : bool
