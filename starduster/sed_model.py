@@ -162,11 +162,11 @@ class MultiwavelengthSED(nn.Module):
 
         Parameters
         ----------
-        pset_gp : ParameterSet
+        pn_gp : ParameterSet
             Parametrisation of the galaxy parameters.
-        pset_sfh_disk : ParameterSet
+        pn_sfh_disk : ParameterSet
             Parametrisation of the disk star formation history.
-        pset_sfh_bulge : ParameterSet
+        pn_sfh_bulge : ParameterSet
             Parametrisation of the bulge star formation history.
         flat_input : bool
             If ``True``, assume the input array is flat.
