@@ -9,13 +9,36 @@ from torch.nn import functional as F
 
 
 class Parametrization(nn.Module):
-    """Base class for a parameter set."""
+    """Base class for a parametrization of a SED model.
+
+    The initialization of this class plays a trick to prevent the user from
+    passing extra variables. When writing a subclass, the developer should
+    following convention:
+
+    def __init__(self, A, B, C):
+        super().__init__(A, B, C)
+
+    def _init(self, helper, lib_ssp, A, B, C):
+        # Write the code for initialization here.
+
+    Call ``enable`` to make this class work, which executes ``_init``
+    internally.
+    """
     def __init__(self, *args):
         super().__init__()
         self._args = args
 
 
     def enable(self, helper, lib_ssp):
+        """Eable the class.
+
+        Parameters
+        ----------
+        helper : Helper
+            Helper of input parameters.
+        lib_ssp : SSPLibrary
+            A simple stellar population library.
+        """
         param_names, fixed_params, bounds_default, bounds, clip_bounds \
             = self._init(helper, lib_ssp, *self._args)
         params_default, free_inds = self._derive_default_params(param_names, fixed_params)
@@ -42,21 +65,33 @@ class Parametrization(nn.Module):
 
 
     def _init(self, helper, lib_ssp, *args):
-        """
+        """The initialization body.
+
+        Parameters
+        ----------
+        helper : Helper
+            Helper of input parameters.
+        lib_ssp : SSPLibrary
+            A simple stellar population library.
+        args : tuple
+            Any arguments passed to ``__init__``.
+
         Returns
         -------
         param_names : list
             List of parameter names.
         fixed_params : dict
-            A dictionary to specify fixed parameters. Use the name of the parameter
-            as the key.
+            A dictionary to specify fixed parameters. Use the name of the
+            parameter as the key.
         bounds_default : array
-            An array of (min, max) to specify the default bounds of the parameters.
+            An array of (min, max) to specify the default bounds of the
+            parameters.
         bounds : array
-            An array of (min, max) to specify the working bounds of the parameters.
+            An array of (min, max) to specify the working bounds of the
+            parameters.
         clip_bounds : bool
-            If true, when an input value is beyond a bound, set it to be the same
-            with the bound.
+            If true, when an input value is beyond a bound, set it to be the
+            same with the bound.
         """
         # return param_names, fixed_params, bounds_default, bounds, clip_bounds
         pass
@@ -90,27 +125,23 @@ class Parametrization(nn.Module):
 
     def forward(self, params):
         params = self._clip_bounds(params)
-        params = self.set_fixed_params(params)
+        params = self._set_fixed_params(params)
         params = self.derive_full_params(params)
         return params
 
 
-    def check_bounds(self, params):
-        if self.input_size == 0:
-            return torch.full((params.size(0),), False)
-        else:
-            return torch.any(params <= self.lbounds, dim=-1) \
-                | torch.any(params >= self.ubounds, dim=-1)
+    def derive_full_params(self, params):
+        """Implementation of the parametrization.
+
+        Should be overridden by all subclasses.
+        """
+        return params
 
 
-    def set_fixed_params(self, params):
+    def _set_fixed_params(self, params):
         params_out = self.params_default.tile((params.size(0), 1))
         params_out[:, self.free_inds] = params
         return params_out
-
-
-    def derive_full_params(self, params):
-        return params
 
 
     def _clip_bounds(self, params):
@@ -120,6 +151,14 @@ class Parametrization(nn.Module):
             params = F.hardtanh(params, -1 + eps, 1 - eps)
             params = self.bound_radius*params + self.bound_centre
         return params
+
+
+    def check_bounds(self, params):
+        if self.input_size == 0:
+            return torch.full((params.size(0),), False)
+        else:
+            return torch.any(params <= self.lbounds, dim=-1) \
+                | torch.any(params >= self.ubounds, dim=-1)
 
 
 class GalaxyParameter(Parametrization):
@@ -161,7 +200,7 @@ class GalaxyParameter(Parametrization):
 
 
 class VanillaGrid(Parametrization):
-    """Discrete star formation history.
+    """Default star formation history grid.
 
     Parameters
     ----------
@@ -200,6 +239,23 @@ class VanillaGrid(Parametrization):
 
 
 class CompositeGrid(Parametrization):
+    """A grid that combines a star formation history and a metallicity history.
+
+    Parameters
+    ----------
+    sfh_model : SFHComponent
+        Parametrization of the star formation history.
+    mh_model : SFHComponent
+        Parametrization of the metallicity history.
+    bounds : array
+        An array of (min, max) to specify the working bounds of the parameters.
+    clip_bounds : bool
+        If true, when an input value is beyond a bound, set it to be the same
+        with the bound.
+    fixed_params : dict
+        A dictionary to specify fixed parameters. Use the name of the parameter
+        as the key.
+    """
     def __init__(self, sfh_model, mh_model, bounds=None, clip_bounds=True, **fixed_params):
         super().__init__(sfh_model, mh_model, bounds, clip_bounds, fixed_params)
 
@@ -225,27 +281,81 @@ class CompositeGrid(Parametrization):
 
 
 class SFHComponent(nn.Module):
+    """Base class for a star formation history component.
+
+    The initialization of this class plays a trick to prevent the user from
+    passing extra variables. When writing a subclass, the developer should
+    following convention:
+
+    def __init__(self, A, B, C):
+        super().__init__(A, B, C)
+
+    def _init(self, lib_ssp, A, B, C):
+        # Write the code for initialization here.
+
+    Call ``enable`` to make this class work, which executes ``_init``
+    internally.
+    """
     def __init__(self, *args):
         super().__init__()
         self._args = args
 
 
     def enable(self, lib_ssp):
+        """Eable the class.
+
+        Parameters
+        ----------
+        lib_ssp : SSPLibrary
+            A simple stellar population library.
+        """
         param_names, bounds_default = self._init(lib_ssp, *self._args)
         self._args = None
         return param_names, bounds_default
 
 
     def _init(self, lib_ssp, *args):
+        """The initialization body.
+
+        Parameters
+        ----------
+        lib_ssp : SSPLibrary
+            A simple stellar population library.
+        args : tuple
+            Any arguments passed to ``__init__``.
+
+        Returns
+        -------
+        param_names : list
+            List of parameter names.
+        bounds_default : array
+            An array of (min, max) to specify the default bounds of the
+            parameters.
+        """
         # return param_names, bounds_default
         pass
 
 
     def derive(self, *args):
+        """Implementation of the parametrization.
+
+        Should be overridden by all subclasses.
+        """
         pass
 
 
 class DiscreteSFH(SFHComponent):
+    """Discrete star formation history.
+
+    Parameters
+    ----------
+    sfh_bins : list
+        Each element should be a doublet specifying the start and end bin
+        indices.
+    simplex_transform : bool
+        If true, apply a transform to the input which maps a unit hypercube
+        into a simplex.
+    """
     def __init__(self, sfh_bins=None, simplex_transform=False):
         super().__init__(sfh_bins, simplex_transform)
 
@@ -263,7 +373,7 @@ class DiscreteSFH(SFHComponent):
             bounds_default = np.zeros((0, 2))
         elif n_sfh == 2:
             # There is one degree of freedom in this case due to the
-            # normalisation condition
+            # normalization condition
             param_names = ['c_0']
             bounds_default = np.array([0., 1.])
         elif n_sfh > 2:
@@ -312,6 +422,7 @@ class DiscreteSFH(SFHComponent):
 
 
 class InterpolatedSFH(SFHComponent):
+    """Linearly interpolate the input stellar age into the grid."""
     def _init(self, lib_ssp, *args):
         log_tau = torch.log10(lib_ssp.tau)
         self.register_buffer('log_tau', log_tau)
@@ -327,24 +438,33 @@ class InterpolatedSFH(SFHComponent):
 
 
 class InterpolatedMH(SFHComponent):
+    """Linearly interpolate the input metallicity into the grid."""
     def _init(self, lib_ssp, *args):
         n_met = len(lib_ssp.met)
         log_met = torch.log10(lib_ssp.met/constants.met_sol)
         self.register_buffer('log_met', log_met)
-        #param_names = [f'log_met_{i_met}' for i_met in range(n_met)]
-        #bounds_default = np.tile((log_met[0].item(), log_met[-1].item()), (n_met, 1))
         param_names = ['log_met']
         bounds_default = np.array([[log_met[0].item(), log_met[-1].item()]])
         return param_names, bounds_default
 
 
     def derive(self, params, sfh):
-        # params (N, *) -> (N, N_met, N_age)
+        # params (N, 1) -> (N, N_met, N_age)
         params = params.contiguous()
         return torch.swapaxes(compute_interp_weights(params, self.log_met), 1, 2)
 
 
 class SemiAnalyticConventer:
+    """A class to convert properties from a semi-analytic model into parameters
+    that can be accepted by the given SED model.
+
+    Parameters
+    ----------
+    sed_model : MultiwavelengthSED
+        The target SED model.
+    age_bins : array [yr]
+        Stellar age bins.
+    """
     def __init__(self, sed_model, age_bins):
         self.helper = sed_model.helper
         self.lib_ssp = sed_model.lib_ssp
@@ -355,6 +475,39 @@ class SemiAnalyticConventer:
         theta, m_dust, r_dust, r_disk, r_bulge,
         sfh_mass_disk, sfh_metal_mass_disk, sfh_mass_bulge, sfh_metal_mass_bulge
     ):
+        """Convert the input properties into parameters that can be accepted by
+        the given SED model.
+
+        Parameters
+        ----------
+        theta : array [deg]
+            Inlincation angel.
+        m_dust : array [M_sol]
+            Dust mass.
+        r_dust : array [kpc]
+            Dust disk radius.
+        r_disk : array [kpc]
+            Stellar disk radius.
+        r_bulge : array [kpc]
+            Stellar bulge radius.
+        sfh_mass_disk : array [M_sol]
+            Gross stellar mass of the stellar disk in each age bin.
+        sfh_metal_mass_disk : array [M_sol]
+            Gross metal mass of the stellar disk in each age bin.
+        sfh_mass_bulge : array [M_sol]
+            Gross stellar mass of the stellar bulge in each age bin.
+        sfh_metal_mass_bulge : array [M_sol]
+            Gross metal mass of the stellar bulge in each age bin.
+
+        Returns
+        -------
+        gp : tensor
+            Galaxy parameters.
+        sfh_disk : tensor
+            Star formation history of the disk component.
+        sfh_bulge : tensor
+            Star formation history of the bulge component.
+        """
         den_dust = m_dust/(2*np.pi*r_dust*r_dust)
         r_dust_to_rd = r_dust/r_disk
         sfh_disk, l_norm_disk = self._derive_sfh(sfh_mass_disk, sfh_metal_mass_disk)
@@ -443,6 +596,11 @@ class SemiAnalyticConventer:
 
 
 def simplex_transform(x):
+    """Transform a unit hypercube into a simplex.
+
+    If the input is uniformly distributed in (0, 1), the output will follow a
+    flat Dirichlet distribution.
+    """
     x = -torch.log(1 - x)
     return x/x.sum(dim=-1, keepdim=True)
 
