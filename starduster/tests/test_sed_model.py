@@ -12,6 +12,7 @@ def test_sed_model():
     data = pickle.load(open(get_fname(), "rb"))
     params = data['input']
     spectra_fid, mags_fid = data['output']
+
     sed_model = create_sed_model()
     with torch.no_grad():
         spectra_test = sed_model(*params, return_ph=False)
@@ -19,6 +20,16 @@ def test_sed_model():
 
     np.testing.assert_allclose(spectra_fid.numpy(), spectra_test.numpy(), rtol=1e-4, atol=1e-4)
     np.testing.assert_allclose(mags_fid.numpy(), mags_test.numpy(), rtol=1e-4, atol=1e-4)
+    # Test flat input
+    sed_model.configure(flat_input=True)
+    params_flat = torch.hstack(params)
+    with torch.no_grad():
+        spectra_test = sed_model(params_flat, return_ph=False)
+        mags_test = sed_model(params_flat, return_ph=True)
+
+    np.testing.assert_allclose(spectra_fid.numpy(), spectra_test.numpy(), rtol=1e-4, atol=1e-4)
+    np.testing.assert_allclose(mags_fid.numpy(), mags_test.numpy(), rtol=1e-4, atol=1e-4)
+
 
 
 def create_test_data():
