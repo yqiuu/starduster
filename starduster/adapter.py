@@ -60,7 +60,8 @@ class Adapter(nn.Module, Configurable):
     def forward(self, *args, check_bounds=False):
         if self.flat_input:
             params = torch.as_tensor(args[0], dtype=torch.float32, device=self.device)
-            gp, sfh_disk, sfh_bulge = self.unflatten(params)
+            params = torch.atleast_2d(params)
+            gp, sfh_disk, sfh_bulge = torch.split(params, self.free_shape, dim=-1)
         else:
             gp, sfh_disk, sfh_bulge = args
 
@@ -83,17 +84,6 @@ class Adapter(nn.Module, Configurable):
             return gp, sfh_disk, sfh_bulge, is_out
         else:
             return self._apply_pset(gp, sfh_disk, sfh_bulge)
-
-
-    def unflatten(self, params):
-        params = torch.atleast_2d(params)
-        params_out = [None]*len(self.free_shape)
-        idx_b = 0
-        for i_input, size in enumerate(self.free_shape):
-            idx_e = idx_b + size
-            params_out[i_input] = params[:, idx_b:idx_e]
-            idx_b = idx_e
-        return params_out
 
 
     @property
