@@ -17,7 +17,7 @@ class Parametrization(nn.Module):
 
     def enable(self, helper, lib_ssp):
         param_names, fixed_params, bounds_default, bounds, clip_bounds \
-            = self.init(helper, lib_ssp, self._args)
+            = self._init(helper, lib_ssp, *self._args)
         params_default, free_inds = self._derive_default_params(param_names, fixed_params)
         self._update_bounds(param_names, bounds_default, bounds)
         self.register_buffer('params_default', params_default)
@@ -41,7 +41,7 @@ class Parametrization(nn.Module):
         self.clip_bounds = clip_bounds
 
 
-    def init(self, helper, lib_ssp, args):
+    def _init(self, helper, lib_ssp, *args):
         """
         Returns
         -------
@@ -142,8 +142,7 @@ class GalaxyParameter(Parametrization):
         super().__init__(bounds, clip_bounds, fixed_params)
 
 
-    def init(self, helper, lib_ssp, args):
-        bounds, clip_bounds, fixed_params = args
+    def _init(self, helper, lib_ssp, bounds, clip_bounds, fixed_params):
         param_names = helper.header.keys()
         bounds_default = [(-1., 1.)]*len(helper.header)
         # Transform the parameters
@@ -184,10 +183,12 @@ class VanillaGrid(Parametrization):
         super().__init__(simplex_transform, bounds, clip_bounds, fixed_params)
 
 
-    def init(self, helper, lib_ssp, args):
-        self.simplex_transform , bounds, clip_bounds, fixed_params = args
+    def _init(self, helper, lib_ssp, simplex_transform, bounds, clip_bounds, fixed_params):
         param_names = [f'sfr_{i_sfr}' for i_sfr in range(lib_ssp.n_ssp)]
         bounds_default = [(0., 1.)]*lib_ssp.n_ssp
+
+        self.simplex_transform = simplex_transform
+
         return param_names, fixed_params, bounds_default, bounds, clip_bounds
 
 
@@ -203,15 +204,16 @@ class CompositeGrid(Parametrization):
         super().__init__(sfh_model, mh_model, bounds, clip_bounds, fixed_params)
 
 
-    def init(self, helper, lib_ssp, args):
-        sfh_model, mh_model, bounds, clip_bounds, fixed_params = args
+    def _init(self, helper, lib_ssp, sfh_model, mh_model, bounds, clip_bounds, fixed_params):
         param_names_sfh, bounds_default_sfh = sfh_model.enable(lib_ssp)
         param_names_mh, bounds_default_mh = mh_model.enable(lib_ssp)
         param_names = param_names_sfh + param_names_mh
         bounds_default = np.vstack([bounds_default_sfh, bounds_default_mh])
+
         self.split_size = (len(param_names_sfh), len(param_names_mh))
         self.sfh_model = sfh_model
         self.mh_model = mh_model
+
         return param_names, fixed_params, bounds_default, bounds, clip_bounds
 
 
