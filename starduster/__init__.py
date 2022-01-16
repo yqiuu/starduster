@@ -1,6 +1,7 @@
 from .sed_model import *
 from .adapter import *
 from .detector import *
+from .parametrization import *
 from .selector import *
 from .helper import *
 from .dust_attenuation import *
