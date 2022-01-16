@@ -6,7 +6,7 @@ install_requires = [
     'astropy>=3',
     'numpy>=1.17',
     'astro-sedpy>=0.2',
-    'torch>=1.8',
+    'torch>=1.9',
     'tqdm',
 ]
 
