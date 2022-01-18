@@ -1,5 +1,6 @@
 from .utils import constants
 
+import math
 from bisect import bisect_left
 
 import numpy as np
@@ -269,6 +270,8 @@ class CompositeGrid(Parametrization):
         self.split_size = (len(param_names_sfh), len(param_names_mh))
         self.sfh_model = sfh_model
         self.mh_model = mh_model
+        self.need_light_norm = getattr(sfh_model, 'need_light_norm', False)
+        self.register_buffer('light_norm', lib_ssp.norm)
 
         return param_names, fixed_params, bounds_default, bounds, clip_bounds
 
@@ -277,7 +280,11 @@ class CompositeGrid(Parametrization):
         params_sfh, params_mh = torch.split(params, self.split_size, dim=1)
         sfh = self.sfh_model.derive(params_sfh)
         mh = self.mh_model.derive(params_mh, sfh)
-        return torch.flatten(sfh[:, None, :]*mh, start_dim=1)
+        sfh_grid = torch.flatten(sfh[:, None, :]*mh, start_dim=1)
+        if need_weighted_norm:
+            sfh_grid = sfh_grid*self.light_norm
+            sfh_grid = sfh_grid/sfh_grid.sum(dim=-1, keepdim=True)
+        return sfh_grid
 
 
 class SFHComponent(nn.Module):
@@ -434,6 +441,54 @@ class InterpolatedSFH(SFHComponent):
         # (N, 1) -> (N, N_age)
         params = params.contiguous()
         return torch.squeeze(compute_interp_weights(params, self.log_tau), dim=1)
+
+
+class AnalyticSFH(SFHComponent):
+    def enable(self, lib_ssp):
+        self.need_light_norm = True
+        self.register_buffer('tau_edges', lib_ssp.tau_edges)
+        return super().enable(lib_ssp)
+
+
+    def derive(self, params):
+        return torch.diff(self.integrate_sfh(params, self.tau_edges))
+
+
+    def integrate_sfh(self, params, tau_edges):
+        # params (N, *)
+        # tau_edges (D_age + 1,)
+        # return (N, D_age + 1)
+        pass
+
+
+class ExponentialSFH(AnalyticSFH):
+    def _init(self, lib_ssp, *args):
+        param_names = ['log10_tau', 'log10_t0']
+        log_t0_min = math.log10(lib_ssp.tau_edges[0])
+        log_t0_max = math.log10(lib_ssp.tau_edges[-1])
+        bounds_default = np.array([(log_t0_max - 1, log_t0_max + 2), (log_t0_min, log_t0_max)])
+        return param_names, bounds_default
+
+
+    def integrate_sfh(self, params, t_age):
+        tau, t0 = torch.hsplit(10**params, (1,))
+        t_age = t0*F.hardtanh(t_age/t0)
+        return torch.exp(t_age/tau)
+
+
+class DelayedExponentialSFH(AnalyticSFH):
+    def _init(self, lib_ssp, *args):
+        param_names = ['log10_tau', 'log10_t0']
+        log_t0_min = math.log10(lib_ssp.tau_edges[0])
+        log_t0_max = math.log10(lib_ssp.tau_edges[-1])
+        bounds_default = np.array([(log_t0_max - 1, log_t0_max + 2), (log_t0_min, log_t0_max)])
+        return param_names, bounds_default
+
+
+    def integrate_sfh(self, params, t_age):
+        tau, t0 = torch.hsplit(10**params, (1,))
+        t_age = t0*F.hardtanh(t_age/t0)
+        return (t0 + tau - t_age)*torch.exp(t_age/tau)
 
 
 class InterpolatedMH(SFHComponent):
