@@ -166,6 +166,11 @@ def simps(y0, y1, y2, x0, x1, x2):
     return h/6.*((2. - h0/h1)*y0 + h*h/(h0*h1)*y1 + (2. - h1/h0)*y2)
 
 
+def simple_trapz(y, x):
+    """Apply the trapzoid rule without the final summation"""
+    return .5*(y[:, 1:] + y[:, :-1])*(x[:, 1:] - x[:, :-1])
+
+
 def interp_arr(x, xp, yp, left=None, right=None, period=None):
     """Apply linear interpolation to an array of y data assuming the same x
     data.
