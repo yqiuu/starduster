@@ -271,7 +271,7 @@ class CompositeGrid(Parametrization):
         self.sfh_model = sfh_model
         self.mh_model = mh_model
         self.need_light_norm = getattr(sfh_model, 'need_light_norm', False)
-        self.register_buffer('light_norm', lib_ssp.norm)
+        self.register_buffer('light_norm', torch.ravel(lib_ssp.norm))
 
         return param_names, fixed_params, bounds_default, bounds, clip_bounds
 
@@ -281,7 +281,7 @@ class CompositeGrid(Parametrization):
         sfh = self.sfh_model.derive(params_sfh)
         mh = self.mh_model.derive(params_mh, sfh)
         sfh_grid = torch.flatten(sfh[:, None, :]*mh, start_dim=1)
-        if need_weighted_norm:
+        if self.need_light_norm:
             sfh_grid = sfh_grid*self.light_norm
             sfh_grid = sfh_grid/sfh_grid.sum(dim=-1, keepdim=True)
         return sfh_grid
