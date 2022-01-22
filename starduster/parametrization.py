@@ -382,11 +382,9 @@ class DiscreteSFH(SFHComponent):
             # normalization condition
             param_names = ['c_0']
             bounds_default = np.array([0., 1.])
-        elif n_sfh > 2:
+        else:
             param_names = [f'c_{i_sfh}' for i_sfh in range(n_sfh)]
             bounds_default = np.tile((0., 1.), (n_sfh, 1))
-        else:
-            raise ValueError("Invalid 'sfh_bins'.")
 
         self.simplex_transform = simplex_transform
         self.sfh_bins = sfh_bins
