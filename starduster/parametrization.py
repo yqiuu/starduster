@@ -146,7 +146,7 @@ class Parametrization(nn.Module):
 
 
     def _clip_bounds(self, params):
-        if self.clip_bounds:
+        if self.clip_bounds and self.input_size > 0:
             eps = 1e-6
             params = (params - self.bound_centre)/self.bound_radius
             params = F.hardtanh(params, -1 + eps, 1 - eps)
