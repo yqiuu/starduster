@@ -1,21 +1,24 @@
 import pytest
 import torch
-import starduster
+import starduster as sd
 from numpy import testing
 
 
-@pytest.mark.parametrize("target", (
-    starduster.DiscreteSFH(simplex_transform=True),
-    starduster.DiscreteSFH(sfh_bins=[(2, 5)], simplex_transform=True),
-    starduster.DiscreteSFH(sfh_bins=[(1, 2), (3, 6)], simplex_transform=True),
-    starduster.DiscreteSFH(sfh_bins=[(0, 1), (1, 2), (3, 6)], simplex_transform=True),
+@pytest.mark.parametrize("target,need_check_norm", (
+    (sd.DiscreteSFH(simplex_transform=True), True),
+    (sd.DiscreteSFH(sfh_bins=[(2, 5)], simplex_transform=True), True),
+    (sd.DiscreteSFH(sfh_bins=[(1, 2), (3, 6)], simplex_transform=True), True),
+    (sd.DiscreteSFH(sfh_bins=[(0, 1), (1, 2), (3, 6)], simplex_transform=True), True),
+    (sd.ExponentialSFH(), False),
+    (sd.ExponentialSFH(n_sub=1), False),
+    (sd.DelayedExponentialSFH(), False),
 ))
-def test_sfh(target):
+def test_sfh(target, need_check_norm):
     # Test whether the SFH component gives the correct shape and whether the
     # derived SFH is normalised to one.
     torch.set_num_threads(1)
     torch.manual_seed(831)
-    lib_ssp = starduster.SSPLibrary.from_builtin()
+    lib_ssp = sd.SSPLibrary.from_builtin()
 
     n_samp = 5
     param_names, bounds_default = target.enable(lib_ssp)
@@ -24,18 +27,19 @@ def test_sfh(target):
     sfh = target.derive(params)
 
     assert sfh.size() == torch.Size((n_samp, lib_ssp.n_tau))
-    testing.assert_allclose(torch.sum(sfh, dim=1).numpy(), 1.)
+    if need_check_norm:
+        testing.assert_allclose(torch.sum(sfh, dim=1).numpy(), 1.)
 
 
 @pytest.mark.parametrize("target", (
-    starduster.InterpolatedMH(),
+    sd.InterpolatedMH(),
 ))
 def test_mh(target):
     # Test whether the SFH component gives the correct shape and whether the
     # derived SFH is normalised to one.
     torch.set_num_threads(1)
     torch.manual_seed(831)
-    lib_ssp = starduster.SSPLibrary.from_builtin()
+    lib_ssp = sd.SSPLibrary.from_builtin()
 
     n_samp = 5
     param_names, bounds_default = target.enable(lib_ssp)
@@ -53,10 +57,10 @@ def test_mh(target):
 def test_discrete_sfh_raises():
     # Test whether DiscreteSFH can find invalid sfh_bins
     torch.set_num_threads(1)
-    lib_ssp = starduster.SSPLibrary.from_builtin()
+    lib_ssp = sd.SSPLibrary.from_builtin()
 
     def init_sfh(sfh_bins):
-        starduster.DiscreteSFH(sfh_bins).enable(lib_ssp)
+        sd.DiscreteSFH(sfh_bins).enable(lib_ssp)
     
     # Indices must be within [0, n_tau]
     testing.assert_raises(AssertionError, init_sfh, [(1, lib_ssp.n_tau + 5)])
