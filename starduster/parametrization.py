@@ -278,8 +278,8 @@ class CompositeGrid(Parametrization):
 
     def derive_full_params(self, params):
         params_sfh, params_mh = torch.split(params, self.split_size, dim=1)
-        sfh = self.sfh_model.derive(params_sfh)
-        mh = self.mh_model.derive(params_mh, sfh)
+        sfh = self.sfh_model(params_sfh)
+        mh = self.mh_model(params_mh, sfh)
         sfh_grid = torch.flatten(sfh[:, None, :]*mh, start_dim=1)
         if self.need_light_norm:
             sfh_grid = sfh_grid*self.light_norm
@@ -342,14 +342,6 @@ class SFHComponent(nn.Module):
         pass
 
 
-    def derive(self, *args):
-        """Implementation of the parametrization.
-
-        Should be overridden by all subclasses.
-        """
-        pass
-
-
 class DiscreteSFH(SFHComponent):
     """Discrete star formation history.
 
@@ -403,7 +395,7 @@ class DiscreteSFH(SFHComponent):
             idx_prev = idx_e
 
 
-    def derive(self, params):
+    def forward(self, params):
         # (N, *) -> (N, N_age)
         if self.simplex_transform and self.n_sfh > 2:
             params = simplex_transform(params)
@@ -435,7 +427,7 @@ class InterpolatedSFH(SFHComponent):
         return param_names, bounds_default
 
 
-    def derive(self, params):
+    def forward(self, params):
         # (N, 1) -> (N, N_age)
         params = params.contiguous()
         return torch.squeeze(compute_interp_weights(params, self.log_tau), dim=1)
@@ -469,7 +461,7 @@ class AnalyticSFH(SFHComponent):
         return t_age
 
 
-    def derive(self, params):
+    def forward(self, params):
         params, t_trunc = self._preprocess_params(params)
         if t_trunc is None:
             t_age = self.t_age.unsqueeze(0)
@@ -535,7 +527,7 @@ class InterpolatedMH(SFHComponent):
         return param_names, bounds_default
 
 
-    def derive(self, params, sfh):
+    def forward(self, params, sfh):
         # params (N, 1) -> (N, N_met, N_age)
         params = params.contiguous()
         return torch.swapaxes(compute_interp_weights(params, self.log_met), 1, 2)

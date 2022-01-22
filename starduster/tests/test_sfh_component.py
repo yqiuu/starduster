@@ -24,7 +24,7 @@ def test_sfh(target, need_check_norm):
     param_names, bounds_default = target.enable(lib_ssp)
     lb, ub = torch.as_tensor(bounds_default).T
     params = ub + (lb - ub)*torch.rand(n_samp, len(param_names))
-    sfh = target.derive(params)
+    sfh = target(params)
 
     assert sfh.size() == torch.Size((n_samp, lib_ssp.n_tau))
     if need_check_norm:
@@ -47,7 +47,7 @@ def test_mh(target):
     params = ub + (lb - ub)*torch.rand(n_samp, len(param_names))
     sfh = torch.rand(n_samp, lib_ssp.n_tau)
     sfh = sfh/sfh.sum(dim=1, keepdim=True)
-    mh = target.derive(params, sfh)
+    mh = target(params, sfh)
 
     assert mh.size() == torch.Size((n_samp, lib_ssp.n_met, 1)) \
         or mh.size() == torch.Size((n_samp, lib_ssp.n_met, lib_ssp.n_tau))
