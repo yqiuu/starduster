@@ -16,12 +16,12 @@ def sample_params(n_samp, bounds):
     return ub + (lb - ub)*torch.rand(n_samp, len(lb))
 
 
-@pytest.mark.parametrize("target,pn_type,need_check_norm", (
-    (sd.GalaxyParameter(), 'gp', False),
-    (sd.VanillaGrid(simplex_transform=True), 'sfh', True),
-    (sd.CompositeGrid(sd.ExponentialSFH(), sd.InterpolatedMH()), 'sfh', True)
+@pytest.mark.parametrize("target,need_check_norm", (
+    (sd.GalaxyParameter(), False),
+    (sd.VanillaGrid(simplex_transform=True), True),
+    (sd.CompositeGrid(sd.ExponentialSFH(), sd.InterpolatedMH()), True)
 ))
-def test_parametrization(target, pn_type, need_check_norm):
+def test_parametrization(target, need_check_norm):
     # Test whether the parameterization gives the correct shape and whether the
     # derived SFH is normalised to one.
     sed_model = sd.MultiwavelengthSED.from_builtin()
@@ -31,23 +31,20 @@ def test_parametrization(target, pn_type, need_check_norm):
     params_in = sample_params(n_samp, target.bounds)
     params_out = target(params_in)
     
-    if pn_type == 'gp':
+    if isinstance(target, sd.GalaxyParameter):
         n_param = len(sed_model.helper.header)
-    elif pn_type == 'sfh':
-        n_param = sed_model.lib_ssp.n_ssp
     else:
-        raise ValueError(f"Unkown 'pn_type': {pn_type}.")
+        n_param = sed_model.lib_ssp.n_ssp
     assert params_out.size() == torch.Size((n_samp, n_param))
     
     if need_check_norm:
         testing.assert_allclose(torch.sum(params_out, dim=1).numpy(), 1., rtol=RTOL, atol=ATOL)
 
 
-@pytest.mark.parametrize("target,pn_type", (
-    (sd.GalaxyParameter, 'gp'),
-    (sd.VanillaGrid, 'sfh'),
+@pytest.mark.parametrize("target", (
+    sd.GalaxyParameter, sd.VanillaGrid,
 ))
-def test_fixed_params(target, pn_type):
+def test_fixed_params(target):
     # Test whether the parameterization works when some parameters are fixed.
     sed_model = sd.MultiwavelengthSED.from_builtin()
     helper = sed_model.helper
@@ -57,13 +54,11 @@ def test_fixed_params(target, pn_type):
     idx = torch.randint(0, len(pn.param_names), (1,)).item()
     lb, ub = pn.bounds[idx]
     fixed_value = .5*(lb + ub)
-    if pn_type == 'gp':
+    if target == sd.GalaxyParameter:
         key = pn.param_names[idx]
         fixed_params = {key: helper.recover(fixed_value, key)}
-    elif pn_type == 'sfh':
-        fixed_params = {pn.param_names[idx]: fixed_value}
     else:
-        raise ValueError(f"Unkown 'pn_type': {pn_type}.")
+        fixed_params = {pn.param_names[idx]: fixed_value}
     pn_fixed = target(**fixed_params)
     pn_fixed.enable(sed_model.helper, sed_model.lib_ssp)
 
@@ -76,7 +71,7 @@ def test_fixed_params(target, pn_type):
     testing.assert_allclose(params_out, params_out_expect, rtol=RTOL, atol=ATOL)
     # Test the case where all parameters are fixed
     params_all_fixed = torch.as_tensor(pn.bounds.mean(axis=1), dtype=torch.float32)
-    if pn_type == 'gp':
+    if target == sd.GalaxyParameter:
         fixed_params = {
             key: helper.recover(val, key) for key, val in zip(pn.param_names, params_all_fixed)
         }
