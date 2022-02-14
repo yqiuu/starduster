@@ -43,26 +43,29 @@ class InterpFixedX(nn.Module):
     """Apply linear interpolation to an array of y data assuming the same x
     data.
     """
-    def __init__(self, x_eval, x_data):
-        assert x_eval.min() >= x_data.min()
-        assert x_eval.max() <= x_data.max()
-        
+    def __init__(self, x_eval, x_data, fill_value=0.):
         inds = torch.searchsorted(x_data, x_eval)
         inds[inds == 0] = 1 # Only happen when min(x_eval) = min(x_data)
+        inds[inds == x_data.size(0)] = x_data.size(0) - 1
         x0 = x_data[inds - 1]
         x1 = x_data[inds]
         weights = (x_eval - x0)/(x1 - x0)
+        mask = torch.as_tensor((x_eval >= x_data[0]) & (x_eval <= x_data[-1]), dtype=x_data.dtype)
         
         super().__init__()
         self.register_buffer('inds', inds)
         self.register_buffer('weights', weights)
+        self.register_buffer('mask', mask)
+        self.register_buffer('fill_value', torch.tensor(fill_value, dtype=x_data.dtype))
         
         
     def forward(self, y_data):
-        y0 = y_data[..., self.inds]
-        y1 = y_data[..., self.inds - 1]
-        return torch.lerp(y0, y1, self.weights)
-        
+        y0 = y_data[..., self.inds - 1]
+        y1 = y_data[..., self.inds]
+        y_eval = torch.lerp(y0, y1, self.weights)
+        y_eval = self.mask*y_eval + (1 - self.mask)*self.fill_value
+        return y_eval
+
 
 def namedtuple_from_dict(name, target):
     return namedtuple(name, target.keys())(**target)
