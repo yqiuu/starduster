@@ -47,28 +47,33 @@ class AttenuationCurve(nn.Module):
 
 
 class DustAttenuation(nn.Module):
-    def __init__(self, helper, curve_disk, curve_bulge, l_ssp):
+    def __init__(self, helper, curve_disk, curve_bulge, l_ssp, interp=None):
         super().__init__()
         self.helper = helper
         self.curve_disk = curve_disk
         self.curve_bulge = curve_bulge
         self.register_buffer('l_ssp', l_ssp, persistent=False)
+        self.interp = interp
         #
         self._b2t_name = 'b_to_t'
 
 
     def forward(self, params, sfh_disk, sfh_bulge):
         b2t = self.helper.get_recover(params, self._b2t_name, torch)[:, None]
-        p_disk = self.helper.get_item(params, 'curve_disk_inds')
-        p_bulge = self.helper.get_item(params, 'curve_bulge_inds')
         l_disk = torch.matmul(sfh_disk, self.l_ssp)
+        l_disk = self.apply_transmission('disk', l_disk, params)
         l_bulge = torch.matmul(sfh_bulge, self.l_ssp)
-        trans_disk = self.helper.set_item(
-            torch.ones_like(l_disk), 'slice_lam_da', 10**(-.4*self.curve_disk(p_disk))
-        )
-        trans_bulge = self.helper.set_item(
-            torch.ones_like(l_bulge), 'slice_lam_da', 10**(-.4*self.curve_bulge(p_bulge))
-        )
-        l_main = l_disk*trans_disk*(1 - b2t) + l_bulge*trans_bulge*b2t
+        l_bulge = self.apply_transmission('bulge', l_bulge, params)
+        l_main = l_disk*(1 - b2t) + l_bulge*b2t
         return l_main
+
+
+    def apply_transmission(self, target, l_target, params):
+        params_curve = self.helper.get_item(params, f'curve_{target}_inds')
+        trans = 10**(-.4*getattr(self, f'curve_{target}')(params_curve))
+        if self.interp is None:
+            trans = self.helper.set_item(torch.ones_like(l_target), 'slice_lam_da', trans)
+        else:
+            trans = self.interp(trans)
+        return trans*l_target
 

@@ -8,9 +8,9 @@ import torch
 
 
 class SSPLibrary:
-    def __init__(self, fname, lam, eps=5e-4):
+    def __init__(self, fname, lam_base, regrid_mode):
         lib_ssp = pickle.load(open(fname, "rb"))
-        lam_ssp = lib_ssp['lam']
+        lam_ssp = lib_ssp['lam'] # mircon
         log_lam_ssp = np.log(lam_ssp)
         l_ssp_raw = lib_ssp['flx']/lib_ssp['norm']
         self.sfh_shape = l_ssp_raw.shape[1:] # (lam, met, age)
@@ -22,12 +22,15 @@ class SSPLibrary:
         l_ssp_raw.resize(l_ssp_raw.shape[0], l_ssp_raw.shape[1]*l_ssp_raw.shape[2])
         l_ssp_raw = l_ssp_raw.T
         l_ssp_raw *= lam_ssp
-        L_ssp = reduction(l_ssp_raw, log_lam_ssp, eps=eps)[0]
-        l_ssp = interp_arr(np.log(lam), log_lam_ssp, l_ssp_raw, right=0.)
+        eps = 5e-4
+        L_ssp, _, inds = reduction(l_ssp_raw, log_lam_ssp, eps=eps)
+        lam_eval = self.prepare_lam_eval(regrid_mode, lam_base, lam_ssp, inds)
+        l_ssp = interp_arr(np.log(lam_eval), log_lam_ssp, l_ssp_raw, right=0.)
         # Save attributes
         self.tau = torch.tensor(lib_ssp['tau'], dtype=torch.float32)
         self.met = torch.tensor(lib_ssp['met'], dtype=torch.float32)
-        self.lam = torch.tensor(lam, dtype=torch.float32)
+        self.lam_base = torch.tensor(lam_base, dtype=torch.float32)
+        self.lam_eval = torch.tensor(lam_eval, dtype=torch.float32)
         self.l_ssp = torch.tensor(l_ssp, dtype=torch.float32)
         self.L_ssp = torch.tensor(L_ssp, dtype=torch.float32)
         self.norm = torch.tensor(lib_ssp['norm'], dtype=torch.float32)
@@ -36,11 +39,27 @@ class SSPLibrary:
 
 
     @classmethod
-    def from_builtin(cls):
+    def from_builtin(cls, regrid_mode):
         dirname = path.join(path.dirname(path.abspath(__file__)), "data")
         fname = path.join(dirname, "FSPS_Chabrier_neb_compact.pickle")
-        lam_main = pickle.load(open(path.join(dirname, "lam_main.pickle"), "rb"))
-        return cls(fname, lam_main)
+        lam_base = pickle.load(open(path.join(dirname, "lam_main.pickle"), "rb"))
+        return cls(fname, lam_base, regrid_mode)
+
+
+    def prepare_lam_eval(self, regrid_mode, lam_base, lam_full, inds_reduce):
+        self.regrid_mode = regrid_mode
+        if regrid_mode == 'base':
+            lam_eval = lam_base
+        elif regrid_mode == 'auto':
+            lam_reduce = lam_full[inds_reduce]
+            lam_eval = np.append(lam_reduce[lam_reduce >= lam_base[0]], lam_base)
+            lam_eval = np.sort(lam_eval)
+        elif regrid_mode == 'full':
+            lam_eval = np.append(lam_full[lam_full >= lam_base[0]], lam_base)
+            lam_eval = np.sort(lam_eval)
+        else:
+            raise ValueError(f"Unknow 'regrid_mode': {regrid_mode}.")
+        return lam_eval
 
 
     def reshape_sfh(self, sfh):

@@ -31,15 +31,31 @@ class MultiwavelengthSED(nn.Module):
         Selector of the bulge component.
     """
     def __init__(self,
-        helper, lib_ssp, dust_attenuation, dust_emission, selector_disk=None, selector_bulge=None,
+        helper, lib_ssp, curve_disk, curve_bulge, dust_emission,
+        selector_disk=None, selector_bulge=None,
     ):
         super().__init__()
         self.helper = helper
         self.lib_ssp = lib_ssp
-        self.dust_attenuation = dust_attenuation
+        interp_da, interp_de = self.prepare_interp_module(helper, lib_ssp)
+        self.dust_attenuation = \
+            DustAttenuation(helper, curve_disk, curve_bulge, lib_ssp.l_ssp, interp_da)
         self.dust_emission = dust_emission
+        self.interp_de = interp_de
         self.adapter = Adapter(helper, lib_ssp, selector_disk, selector_bulge)
-        self.detector = Detector(lib_ssp.lam)
+        self.detector = Detector(lib_ssp.lam_eval)
+
+
+    def prepare_interp_module(self, helper, lib_ssp):
+        if lib_ssp.regrid_mode == 'base':
+            interp_da = None
+            interp_de = None
+        else:
+            lam_da = lib_ssp.lam_base[helper.lookup[f'slice_lam_da']]
+            interp_da = InterpFixedX(lib_ssp.lam_eval, lam_da, 1.)
+            lam_de = lib_ssp.lam_base[helper.lookup[f'slice_lam_de']]
+            interp_de = InterpFixedX(lib_ssp.lam_eval, lam_de, 0.)
+        return interp_da, interp_de
 
 
     @classmethod
@@ -73,14 +89,15 @@ class MultiwavelengthSED(nn.Module):
         dust_emission = \
             DustEmission.from_checkpoint(fname_de, lib_ssp.L_ssp, map_location=map_location)
         helper = dust_emission.helper
-        dust_attenuation = DustAttenuation(helper, curve_disk, curve_bulge, lib_ssp.l_ssp)
-        return cls(helper, lib_ssp, dust_attenuation, dust_emission, selector_disk, selector_bulge)
+        return cls(
+            helper, lib_ssp, curve_disk, curve_bulge, dust_emission, selector_disk, selector_bulge
+        )
 
 
     @classmethod
-    def from_builtin(cls):
+    def from_builtin(cls, regrid_mode='auto'):
         """Initialise the built-in SED model."""
-        lib_ssp = SSPLibrary.from_builtin()
+        lib_ssp = SSPLibrary.from_builtin(regrid_mode)
         dirname = path.join(path.dirname(path.abspath(__file__)), "data")
         fname_da_disk = path.join(dirname, "curve_disk.pt")
         fname_da_bulge = path.join(dirname, "curve_bulge.pt")
@@ -135,7 +152,11 @@ class MultiwavelengthSED(nn.Module):
 
         l_main = self.dust_attenuation(gp, sfh_disk, sfh_bulge)
         l_dust_slice, frac = self.dust_emission(gp, sfh_disk, sfh_bulge)
-        l_dust = frac*self.helper.set_item(torch.zeros_like(l_main), 'slice_lam_de', l_dust_slice)
+        if self.interp_de is None:
+            l_dust = self.helper.set_item(torch.zeros_like(l_main), 'slice_lam_de', l_dust_slice)
+        else:
+            l_dust = self.interp_de(l_dust_slice)
+        l_dust = frac*l_dust
         l_norm = self.helper.get_recover(gp, 'l_norm', torch)[:, None]
         if component == 'both':
             l_ret = l_norm*(l_main + l_dust)
