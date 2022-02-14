@@ -6,6 +6,7 @@ from torch import nn
 
 
 __all__ = [
+    "Configurable", "InterpFixedX",
     "constants", "units", "merge_history", "load_model", "search_inds",
     "reduction", "interp_arr", "accept_reject"
 ]
@@ -37,6 +38,31 @@ class Configurable:
     def update_config(self):
         pass
 
+
+class InterpFixedX(nn.Module):
+    """Apply linear interpolation to an array of y data assuming the same x
+    data.
+    """
+    def __init__(self, x_eval, x_data):
+        assert x_eval.min() >= x_data.min()
+        assert x_eval.max() <= x_data.max()
+        
+        inds = torch.searchsorted(x_data, x_eval)
+        inds[inds == 0] = 1 # Only happen when min(x_eval) = min(x_data)
+        x0 = x_data[inds - 1]
+        x1 = x_data[inds]
+        weights = (x_eval - x0)/(x1 - x0)
+        
+        super().__init__()
+        self.register_buffer('inds', inds)
+        self.register_buffer('weights', weights)
+        
+        
+    def forward(self, y_data):
+        y0 = y_data[..., self.inds]
+        y1 = y_data[..., self.inds - 1]
+        return torch.lerp(y0, y1, self.weights)
+        
 
 def namedtuple_from_dict(name, target):
     return namedtuple(name, target.keys())(**target)
