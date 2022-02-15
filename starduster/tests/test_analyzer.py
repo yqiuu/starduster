@@ -48,7 +48,7 @@ def create_test_data():
 
 
 def create_analyzer():
-    sed_model = starduster.MultiwavelengthSED.from_builtin()
+    sed_model = starduster.MultiwavelengthSED.from_builtin('base')
     sed_model.configure(flat_input=True, check_sfh_norm=False)
     analyzer = starduster.Analyzer(sed_model)
     return sed_model, analyzer

@@ -63,7 +63,7 @@ def create_sed_model():
         'herschel_spire_250', 'herschel_spire_350', 'herschel_spire_500'
     ]
     filters = sedpy.observate.load_filters(band_names)
-    sed_model = starduster.MultiwavelengthSED.from_builtin()
+    sed_model = starduster.MultiwavelengthSED.from_builtin('base')
     sed_model.configure(filters=filters)
     return sed_model
 
