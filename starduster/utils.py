@@ -6,7 +6,7 @@ from torch import nn
 
 
 __all__ = [
-    "Configurable", "InterpFixedX",
+    "Configurable", "Regrid",
     "constants", "units", "merge_history", "load_model", "search_inds",
     "reduction", "interp_arr", "accept_reject"
 ]
@@ -39,7 +39,7 @@ class Configurable:
         pass
 
 
-class InterpFixedX(nn.Module):
+class Regrid(nn.Module):
     """Apply linear interpolation to an array of y data assuming the same x
     data.
     """

@@ -52,9 +52,9 @@ class MultiwavelengthSED(nn.Module):
             interp_de = None
         else:
             lam_da = lib_ssp.lam_base[helper.lookup[f'slice_lam_da']]
-            interp_da = InterpFixedX(lib_ssp.lam_eval, lam_da, 1.)
+            interp_da = Regrid(lib_ssp.lam_eval, lam_da, 1.)
             lam_de = lib_ssp.lam_base[helper.lookup[f'slice_lam_de']]
-            interp_de = InterpFixedX(lib_ssp.lam_eval, lam_de, 0.)
+            interp_de = Regrid(lib_ssp.lam_eval, lam_de, 0.)
         return interp_da, interp_de
 
 
