@@ -8,7 +8,7 @@ import torch
 
 
 class SSPLibrary:
-    def __init__(self, fname, lam_base, regrid_mode):
+    def __init__(self, fname, lam_base, regrid_mode, eps_reduce):
         lib_ssp = pickle.load(open(fname, "rb"))
         lam_ssp = lib_ssp['lam'] # mircon
         log_lam_ssp = np.log(lam_ssp)
@@ -22,8 +22,7 @@ class SSPLibrary:
         l_ssp_raw.resize(l_ssp_raw.shape[0], l_ssp_raw.shape[1]*l_ssp_raw.shape[2])
         l_ssp_raw = l_ssp_raw.T
         l_ssp_raw *= lam_ssp
-        eps = 5e-4
-        L_ssp, _, inds = reduction(l_ssp_raw, log_lam_ssp, eps=eps)
+        L_ssp, _, inds = reduction(l_ssp_raw, log_lam_ssp, eps=eps_reduce)
         lam_eval = self.prepare_lam_eval(regrid_mode, lam_base, lam_ssp, inds)
         l_ssp = interp_arr(np.log(lam_eval), log_lam_ssp, l_ssp_raw, right=0.)
         # Save attributes
@@ -39,11 +38,11 @@ class SSPLibrary:
 
 
     @classmethod
-    def from_builtin(cls, regrid_mode='auto'):
+    def from_builtin(cls, regrid_mode='auto', eps_reduce=4e-5):
         dirname = path.join(path.dirname(path.abspath(__file__)), "data")
         fname = path.join(dirname, "FSPS_Chabrier_neb_compact.pickle")
         lam_base = pickle.load(open(path.join(dirname, "lam_main.pickle"), "rb"))
-        return cls(fname, lam_base, regrid_mode)
+        return cls(fname, lam_base, regrid_mode, eps_reduce)
 
 
     def prepare_lam_eval(self, regrid_mode, lam_base, lam_full, inds_reduce):
