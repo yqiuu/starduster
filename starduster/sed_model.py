@@ -21,8 +21,10 @@ class MultiwavelengthSED(nn.Module):
     ----------
     helper : Helper
         Helper of input parameters.
-    dust_attenuation : module
-        Dust attenuation module.
+    curve_disk : module
+        Attenuation curve module for the stellar disk.
+    curve_bulge : module
+        Attenuation curve module for the stellar bulge.
     dust_emission : module
         Dust emission module.
     selector_disk : Selector
@@ -99,7 +101,19 @@ class MultiwavelengthSED(nn.Module):
 
     @classmethod
     def from_builtin(cls, regrid='auto'):
-        """Initialise the built-in SED model."""
+        """Initialise the built-in SED model.
+        
+        Parameters
+        ----------
+        regrid : str {'base', 'auto', 'full'} or array
+            Specify the wavelength grid for the SED model.
+
+            'base': the grid of training data.
+            'auto': a grid which includes some line emission features.
+            'full': the original grid of the SSP library.
+
+            The wavelength grid can also be given by an array.
+        """
         dirname = path.join(path.dirname(path.abspath(__file__)), "data")
         fname_da_disk = path.join(dirname, "curve_disk.pt")
         fname_da_bulge = path.join(dirname, "curve_bulge.pt")
