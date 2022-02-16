@@ -8,7 +8,7 @@ import torch
 
 
 class SSPLibrary:
-    def __init__(self, fname, lam_base, regrid_mode, eps_reduce):
+    def __init__(self, fname, lam_base, regrid, eps_reduce):
         lib_ssp = pickle.load(open(fname, "rb"))
         lam_ssp = lib_ssp['lam'] # mircon
         log_lam_ssp = np.log(lam_ssp)
@@ -22,8 +22,8 @@ class SSPLibrary:
         l_ssp_raw.resize(l_ssp_raw.shape[0], l_ssp_raw.shape[1]*l_ssp_raw.shape[2])
         l_ssp_raw = l_ssp_raw.T
         l_ssp_raw *= lam_ssp
-        L_ssp, _, inds = reduction(l_ssp_raw, log_lam_ssp, eps=eps_reduce)
-        lam_eval = self.prepare_lam_eval(regrid_mode, lam_base, lam_ssp, inds)
+        L_ssp = reduction(l_ssp_raw, log_lam_ssp, eps=eps_reduce)[0]
+        lam_eval = self.prepare_lam_eval(regrid, l_ssp_raw, log_lam_ssp, lam_base, lam_ssp)
         l_ssp = interp_arr(np.log(lam_eval), log_lam_ssp, l_ssp_raw, right=0.)
         # Save attributes
         self.tau = torch.tensor(lib_ssp['tau'], dtype=torch.float32)
@@ -38,26 +38,27 @@ class SSPLibrary:
 
 
     @classmethod
-    def from_builtin(cls, regrid_mode='auto', eps_reduce=4e-5):
+    def from_builtin(cls, regrid='auto', eps_reduce=4e-5):
         dirname = path.join(path.dirname(path.abspath(__file__)), "data")
         fname = path.join(dirname, "FSPS_Chabrier_neb_compact.pickle")
         lam_base = pickle.load(open(path.join(dirname, "lam_main.pickle"), "rb"))
-        return cls(fname, lam_base, regrid_mode, eps_reduce)
+        return cls(fname, lam_base, regrid, eps_reduce)
 
 
-    def prepare_lam_eval(self, regrid_mode, lam_base, lam_full, inds_reduce):
-        self.regrid_mode = regrid_mode
-        if regrid_mode == 'base':
+    def prepare_lam_eval(self, regrid, l_ssp_raw, log_lam_ssp, lam_base, lam_full):
+        self.regrid = regrid
+        if regrid == 'base':
             lam_eval = lam_base
-        elif regrid_mode == 'auto':
+        elif regrid == 'auto':
+            inds_reduce = reduction(l_ssp_raw, log_lam_ssp, eps=1e-5)[-1]
             lam_reduce = lam_full[inds_reduce]
             lam_eval = np.append(lam_reduce[lam_reduce >= lam_base[0]], lam_base)
             lam_eval = np.sort(lam_eval)
-        elif regrid_mode == 'full':
+        elif regrid == 'full':
             lam_eval = np.append(lam_full[lam_full >= lam_base[0]], lam_base)
             lam_eval = np.sort(lam_eval)
         else:
-            raise ValueError(f"Unknow 'regrid_mode': {regrid_mode}.")
+            lam_eval = np.asarray(lam_eval)
         return lam_eval
 
 

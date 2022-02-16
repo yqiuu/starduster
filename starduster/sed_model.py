@@ -47,7 +47,7 @@ class MultiwavelengthSED(nn.Module):
 
 
     def prepare_interp_module(self, helper, lib_ssp):
-        if lib_ssp.regrid_mode == 'base':
+        if lib_ssp.regrid == 'base':
             interp_da = None
             interp_de = None
         else:
@@ -95,7 +95,7 @@ class MultiwavelengthSED(nn.Module):
 
 
     @classmethod
-    def from_builtin(cls, regrid_mode='auto'):
+    def from_builtin(cls, regrid='auto'):
         """Initialise the built-in SED model."""
         dirname = path.join(path.dirname(path.abspath(__file__)), "data")
         fname_da_disk = path.join(dirname, "curve_disk.pt")
@@ -104,7 +104,7 @@ class MultiwavelengthSED(nn.Module):
         fname_selector_disk = path.join(dirname, "selector_disk.pt")
         fname_selector_bulge = path.join(dirname, "selector_bulge.pt")
         eps_reduce = torch.load(fname_de)['eps_reduce']
-        lib_ssp = SSPLibrary.from_builtin(regrid_mode, eps_reduce)
+        lib_ssp = SSPLibrary.from_builtin(regrid, eps_reduce)
         return cls.from_checkpoint(
             lib_ssp, fname_da_disk, fname_da_bulge, fname_de,
             fname_selector_disk, fname_selector_bulge, map_location=torch.device('cpu')
