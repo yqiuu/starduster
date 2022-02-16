@@ -129,7 +129,7 @@ class Analyzer:
         Parameters
         ----------
         params : tensor
-            Sscaled parameters.
+            Scaled parameters.
 
         Returns
         -------

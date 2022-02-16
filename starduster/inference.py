@@ -177,7 +177,7 @@ class Posterior(nn.Module):
 
         Parameters
         ----------
-        output_mode : string {'torch', 'numpy', 'numpy_grad'}
+        output_mode : str {'torch', 'numpy', 'numpy_grad'}
             'torch' : Return a PyTorch tensor.
             'numpy' : Return a numpy array.
             'numpy_grad' : Return a tuple with the second element be the
