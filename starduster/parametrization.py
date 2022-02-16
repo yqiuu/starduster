@@ -187,6 +187,7 @@ class GalaxyParameter(Parametrization):
         bounds_default = [(-1., 1.)]*len(helper.header)
         # Transform the parameters
         if bounds is not None:
+            bounds = bounds.copy()
             for key, (lb, ub) in bounds.items():
                 lb = helper.transform(lb, key)
                 ub = helper.transform(ub, key)
