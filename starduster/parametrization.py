@@ -196,6 +196,7 @@ class GalaxyParameter(Parametrization):
                 else:
                     bounds[key] = (lb, ub)
         # Transform the parameters
+        fixed_params = fixed_params.copy()
         for key, val in fixed_params.items():
             fixed_params[key] = helper.transform(val, key)
         return param_names, fixed_params, bounds_default, bounds, clip_bounds
