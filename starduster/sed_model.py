@@ -114,17 +114,18 @@ class MultiwavelengthSED(nn.Module):
 
             The wavelength grid can also be given by an array.
         """
+        map_location = torch.device('cpu')
         dirname = path.join(path.dirname(path.abspath(__file__)), "data")
         fname_da_disk = path.join(dirname, "curve_disk.pt")
         fname_da_bulge = path.join(dirname, "curve_bulge.pt")
         fname_de = path.join(dirname, "dust_emission_v1.pt")
         fname_selector_disk = path.join(dirname, "selector_disk.pt")
         fname_selector_bulge = path.join(dirname, "selector_bulge.pt")
-        eps_reduce = torch.load(fname_de)['eps_reduce']
+        eps_reduce = torch.load(fname_de, map_location=map_location)['eps_reduce']
         lib_ssp = SSPLibrary.from_builtin(regrid, eps_reduce)
         return cls.from_checkpoint(
             lib_ssp, fname_da_disk, fname_da_bulge, fname_de,
-            fname_selector_disk, fname_selector_bulge, map_location=torch.device('cpu')
+            fname_selector_disk, fname_selector_bulge, map_location=map_location
         )
 
 
