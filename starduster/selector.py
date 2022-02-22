@@ -25,20 +25,6 @@ class Selector(nn.Module):
         return torch.ravel(torch.sigmoid(self.forward(gp)) > .5)
 
 
-    def sample(self, n_samp, sampler=None):
-        n_col = len(self.helper.header)
-        params_accept = torch.zeros([0, n_col])
-        while len(params_accept) < n_samp:
-            if sampler is None:
-                params = 2*torch.rand(2*n_samp, n_col) - 1.
-            else:
-                params = sampler(2*n_samp)
-            params = params[self.select(params)]
-            params_accept = torch.vstack([params_accept, params])
-        params_accept = self.helper.recover_all(params_accept[:n_samp], torch)
-        return params_accept
-
-
 def sample_from_selector(
     n_samp, selector_disk=None, selector_bulge=None, sampler=None, max_iter=10000
 ):
