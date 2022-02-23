@@ -39,7 +39,7 @@ class MultiwavelengthSED(nn.Module):
         super().__init__()
         self.helper = helper
         self.lib_ssp = lib_ssp
-        interp_da, interp_de = self._prepare_regird_modules(helper, lib_ssp)
+        interp_da, interp_de = self._prepare_regrid_modules(helper, lib_ssp)
         self.dust_attenuation = \
             DustAttenuation(helper, curve_disk, curve_bulge, lib_ssp.l_ssp, interp_da)
         self.dust_emission = dust_emission
@@ -48,8 +48,8 @@ class MultiwavelengthSED(nn.Module):
         self.detector = Detector(lib_ssp.lam_eval)
 
 
-    def _prepare_regird_modules(self, helper, lib_ssp):
-        """Prepare regird modules, which change the wavelength grid of the dust
+    def _prepare_regrid_modules(self, helper, lib_ssp):
+        """Prepare regrid modules, which change the wavelength grid of the dust
         attenuation and emission modules.
         """
         if lib_ssp.regrid == 'base':
