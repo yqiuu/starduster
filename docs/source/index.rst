@@ -30,5 +30,5 @@ PyTorch throughout the applications.
    :maxdepth: 2
    :caption: User guide
 
-   sed_model
+   api
 
