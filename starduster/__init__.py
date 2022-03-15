@@ -1,3 +1,4 @@
+from .version import __version__
 from .sed_model import *
 from .adapter import *
 from .detector import *
