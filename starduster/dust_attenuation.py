@@ -58,12 +58,13 @@ class DustAttenuation(nn.Module):
         self._b2t_name = 'b_to_t'
 
 
-    def forward(self, params, sfh_disk, sfh_bulge):
+    def forward(self, params, sfh_disk, sfh_bulge, apply_dust=True):
         b2t = self.helper.get_recover(params, self._b2t_name, torch)[:, None]
         l_disk = torch.matmul(sfh_disk, self.l_ssp)
-        l_disk = self.apply_transmission('disk', l_disk, params)
         l_bulge = torch.matmul(sfh_bulge, self.l_ssp)
-        l_bulge = self.apply_transmission('bulge', l_bulge, params)
+        if apply_dust:
+            l_disk = self.apply_transmission('disk', l_disk, params)
+            l_bulge = self.apply_transmission('bulge', l_bulge, params)
         l_main = l_disk*(1 - b2t) + l_bulge*b2t
         return l_main
 

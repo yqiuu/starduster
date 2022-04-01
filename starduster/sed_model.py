@@ -130,7 +130,7 @@ class MultiwavelengthSED(nn.Module):
 
 
     def forward(self,
-        *args, return_ph=False, return_lum=False, component='both', check_bounds=False,
+        *args, return_ph=False, return_lum=False, component='combine', check_bounds=False,
     ):
         """Compute multi-wavelength SEDs.
 
@@ -147,10 +147,11 @@ class MultiwavelengthSED(nn.Module):
         return_lum : bool
             If ``True``, return flux density in a unit of Jansky; otherwise
             return luminosity in a unit of L_sol.
-        component : str {'both', 'star', 'dust'}
-            'both' : Return SEDs including both stellar and dust emissions.
-            'star' : Return stellar SEDs only.
-            'dust' : Return dust SEDs only.
+        component : str 
+            'combine' : Return SEDs including both stellar and dust emissions.
+            'dust_free': Return dust free SEDs.
+            'dust_attenuation' : Return dust attenuated stellar SEDs only.
+            'dust_emission' : Return dust SEDs only.
         check_bounds : bool
             If ``True``, return an additional tensor indicating whether the
             input parameters are beyond the effective region.
@@ -169,19 +170,25 @@ class MultiwavelengthSED(nn.Module):
         else:
             gp, sfh_disk, sfh_bulge = self.adapter(*args, check_bounds=check_bounds)
 
-        l_main = self.dust_attenuation(gp, sfh_disk, sfh_bulge)
+        if component == 'dust_free':
+            apply_dust = False
+        else:
+            apply_dust = True
+        l_main = self.dust_attenuation(gp, sfh_disk, sfh_bulge, apply_dust)
+
         l_dust_slice, frac = self.dust_emission(gp, sfh_disk, sfh_bulge)
         if self.interp_de is None:
             l_dust = self.helper.set_item(torch.zeros_like(l_main), 'slice_lam_de', l_dust_slice)
         else:
             l_dust = self.interp_de(l_dust_slice)
         l_dust = frac*l_dust
+
         l_norm = self.helper.get_recover(gp, 'l_norm', torch)[:, None]
-        if component == 'both':
+        if component == 'combine':
             l_ret = l_norm*(l_main + l_dust)
-        elif component == 'star':
+        elif component == 'dust_free' or component == 'dust_attenuation':
             l_ret = l_norm*l_main
-        elif component == 'dust':
+        elif component == 'dust_emission':
             l_ret = l_norm*l_dust
         else:
             raise ValueError(f"Unknow component: {component}.")
