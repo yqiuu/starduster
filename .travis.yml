@@ -8,7 +8,8 @@ before_install:
   - pip install --upgrade pip
   - pip install --upgrade setuptools
 
-install: 
+install:
+  - eval "$(pyenv init --path)"
   - pip install codecov
   - pip install pytest-cov
   - pip install -e .
