@@ -1,4 +1,4 @@
-from .utils import accept_reject
+from .utils import accept_reject, adapt_external
 from .sed_model import MultiwavelengthSED
 
 import numpy as np
@@ -192,114 +192,110 @@ class Posterior(nn.Module):
         if output_mode in ['torch', 'numpy', 'numpy_grad']:
             self._output_mode = output_mode
         else:
-            raise ValueError(f"Unknown output mode: {output_mode}.")
-        if negative:
-            self._sign = -1.
-        else:
-            self._sign = 1.
-        self.log_out = log_out
+            params_full = torch.zeros(
+                params.size(0), self.sed_model.input_size, device=params.device
+            )
+            params_full[:, self.free_inds] = params
+            params_full[:, self.fixed_inds] = params_fixed
+            return params_full
 
 
-    def save_inference_state(self, fname, data):
-        """Save a inference state.
+    def create_target_func(self, mags_obs, fixed_params, mode='numpy'):
+        self.noise_model.set_plate(['mags_obs'], mags_obs)
+        self.sed_model.configure(pn_gp=GalaxyParameter(boundary='none', **fixed_params))
 
-        Parameters
-        ----------
-        fname : str
-            Filename.
-        data : obj
-            Any data that is associated with the inference state.
-        """
-        config_adapter = self.sed_model.adapter.get_config()
-        config_detector = self.sed_model.detector.get_config()
-        inference_state = InferenceState(self.error_func, config_adapter, config_detector, data)
-        torch.save(inference_state, fname)
+        def target_func(params):
+            mags, log_p_in = self.sed_model(params, return_ph=True, check_selector=True)
+            mags = torch.atleast_2d(mags)
+            log_prob = self.noise_model(mags) + self.derive_l_constrain(log_p_in)
+            if self.prior_model is not None:
+                log_prob = log_prob + self.prior_model.log_prob(params)
+            return log_prob
 
-
-    def load_inference_state(self, target):
-        """Load a inference state.
-
-        Parameters
-        ----------
-        target : str or InferenceState
-            Load the error function and configure the corresponding SED model
-            according to the input.
-
-        Returns
-        -------
-        data : obj
-            Saved data.
-        """
-        if isinstance(target, InferenceState):
-            inference_state = target
-        else:
-            inference_state = torch.load(target, self.sed_model.adapter.device)
-        self.error_func = inference_state.error_func
-        self.sed_model.configure(**inference_state.get_config())
-        return inference_state.data
+        return adapt_external(target_func, mode='numpy', device=mags_obs.device)
 
 
-    @property
-    def input_size(self):
-        """Number of input parameters."""
-        return self.sed_model.adapter.input_size + self.error_func.n_params
+    def derive_l_constrain(self, log_p_in):
+        log_p_in_disk, log_p_in_bulge = log_p_in
+        return log_p_in_disk + log_p_in_bulge
 
-
-    @property
-    def param_names(self):
-        """Parameter names"""
-        return self.sed_model.adapter.param_names + self.error_func.param_names
-
-
-    @property
-    def bounds(self):
-        """Bounds of input parameters."""
-        return np.vstack([self.sed_model.adapter.bounds, self.error_func.bounds])
-
-
-class InferenceState(nn.Module):
-    """A container that stores the error fucntion, configuration of the SED
-    model and associated data.
-
-    Parameters
-    ----------
-    error_func : ErrorFunction
-        Error function.
-    config_adapter : dict
-        A dictionary that stores the adapter configuration of the SED model.
-    config_detector : dict
-        A dictionary that stores the detector configuration of the SED model.
-    data : obj
-        Associated data.
-    """
-    def __init__(self, error_func, config_adapter=None, config_detector=None, data=None):
-        super().__init__()
-        self.error_func = error_func
-        self.data = data
-        # Unpack the configuration. This is good if a property is an instance
-        # of nn.Module.
-        if config_adapter is not None:
-            for key, val in config_adapter.items():
-                setattr(self, 'config.' + key, val)
-        if config_detector is not None:
-            for key, val in config_detector.items():
-                setattr(self, 'config.' + key, val)
-
-
-    def get_config(self):
-        """Give the adapter and detector configurations of the SED model.
-
-        Returns
-        -------
-        config : dict
-            A dictionary that stores the configuration of the SED model.
-        """
-        config = {}
-        for name in dir(self):
-            if name.startswith('config.'):
-                config[name.replace('config.', '')] = getattr(self, name)
-        return config
-
+#    def forward(self, params):
+#        model_input_size = self.sed_model.input_size
+#        if self._output_mode == 'numpy_grad':
+#            params = torch.tensor(
+#                params, dtype=torch.float32, requires_grad=True
+#            )
+#            p_model = params[:model_input_size]
+#            p_error = params[model_input_size:]
+#        else:
+#            params = torch.as_tensor(
+#                params, dtype=torch.float32, device=self.sed_model.adapter.device
+#            )
+#            params = torch.atleast_2d(params)
+#            p_model = params[:, :model_input_size]
+#            p_error = params[:, model_input_size:]
+#
+#        y_pred, is_out = self.sed_model(p_model, return_ph=True, check_bounds=True)
+#        if self.error_func.n_params > 0:
+#            is_out |= self.error_func.check_bounds(p_error)
+#        log_post = self._sign*(self.error_func(y_pred, p_error) + self.log_out*is_out)
+#
+#        if self._output_mode == 'numpy':
+#            return np.squeeze(log_post.detach().cpu().numpy())
+#        elif self._output_mode == 'numpy_grad':
+#            log_post.backward()
+#            return log_post.detach().cpu().numpy(), np.array(params.grad.cpu(), dtype=np.float64)
+#        return log_post
+#
+#
+#    def configure_output_mode(self, output_mode='torch', negative=False, log_out=-1e15):
+#        """Configure the output mode.
+#
+#        Parameters
+#        ----------
+#        output_mode : str {'torch', 'numpy', 'numpy_grad'}
+#            'torch' : Return a PyTorch tensor.
+#            'numpy' : Return a numpy array.
+#            'numpy_grad' : Return a tuple with the second element be the
+#            gradient.
+#
+#        negative : bool
+#            If True, multiply the output by -1.
+#        log_out : float
+#            Add this value to the output if the input is beyond the effective
+#            region.
+#        """
+#        if output_mode in ['torch', 'numpy', 'numpy_grad']:
+#            self._output_mode = output_mode
+#        else:
+#            raise ValueError(f"Unknown output mode: {output_mode}.")
+#        if negative:
+#            self._sign = -1.
+#        else:
+#            self._sign = 1.
+#        self.log_out = log_out
+#
+#
+#
+#
+#    @property
+#    def input_size(self):
+#        """Number of input parameters."""
+#        return self.sed_model.adapter.input_size + self.error_func.n_params
+#
+#
+#    @property
+#    def param_names(self):
+#        """Parameter names"""
+#        return self.sed_model.adapter.param_names + self.error_func.param_names
+#
+#
+#    @property
+#    def bounds(self):
+#        """Bounds of input parameters."""
+#        return np.vstack([self.sed_model.adapter.bounds, self.error_func.bounds])
+#
+>>>>>>> 1344837... Add adapt_external:starduster/posterior.py
 
 class OptimizerWrapper(nn.Module):
     """A wrapper that allows a posterior distribution to be minimised by

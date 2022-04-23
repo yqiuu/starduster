@@ -8,7 +8,7 @@ from torch import nn
 __all__ = [
     "Configurable", "Regrid",
     "constants", "units", "merge_history", "load_model", "search_inds",
-    "reduction", "interp_arr", "accept_reject"
+    "reduction", "interp_arr", "accept_reject", "adapt_external"
 ]
 
 
@@ -224,4 +224,25 @@ def accept_reject(n_samp, n_col, sampler, condition, max_iter=10000):
         return samps_accept[0]
     else:
         return samps_accept[:n_samp]
+
+
+def adapt_external(func, mode='numpy', device='cpu'):
+    def wrapper(params):
+        if mode == 'numpy':
+            params = torch.as_tensor(params, dtype=torch.float32, device=device)
+            with torch.no_grad():
+                val = np.squeeze(func(params).cpu().numpy())
+            return val
+        elif mode == 'numpy_grad':
+            params = torch.tensor(params, dtype=torch.float32, device=device, requires_grad=True)
+            val = func(params)
+            val.backward()
+            val = np.squeeze(val.cpu().detach().numpy())
+            # There may be a issue when the gradient is not float64 for scipy algorithms
+            val_grad = np.array(params.grad.cpu(), dtype=np.float64)
+            return val, val_grad
+        else:
+            raise ValueError(f"Unknown mode: '{mode}'.")
+
+    return wrapper
 
