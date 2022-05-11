@@ -8,7 +8,7 @@ from torch import nn
 __all__ = [
     "Configurable", "Regrid",
     "constants", "units", "merge_history", "load_model", "search_inds",
-    "reduction", "interp_arr", "accept_reject", "adapt_external"
+    "reduction", "interp_arr", "accept_reject", "adapt_external", "eval_batch",
 ]
 
 
@@ -252,6 +252,59 @@ def adapt_external(func, mode='numpy', negative=False, device='cpu'):
             return val, val_grad
         else:
             raise ValueError(f"Unknown mode: '{mode}'.")
+
+    return wrapper
+
+
+def eval_batch(func, batch_size, device):
+    """Return a function that evaluates input tensors in batches.
+
+    Parameters
+    ----------
+    func : callable
+        Target function.
+    batch_size : int
+        Batch size.
+    device : torch.device
+        Desired device of input and output tensors.
+
+    Returns
+    -------
+    function
+        A function that evaluates input tensors in batches.
+    """
+    def wrapper(*args, **kwargs):
+        tensors = []
+        
+        inds = None
+        for val in args:
+            if isinstance(val, torch.Tensor):
+                inds = list(range(0, len(val), batch_size)) + [len(val)]
+                break
+        if inds is None:
+            for val in kwargs.values():
+                if isinstance(val, torch.Tensor):
+                    inds = list(range(0, len(val), batch_size)) + [len(val)]
+                    break
+        if inds is None:
+            raise ValueError("Cannot find input tensor.")
+
+        for idx_b, idx_e in zip(inds[:-1], inds[1:]):
+            args_sub = []
+            for val in args:
+                if isinstance(val, torch.Tensor):
+                    val = val[idx_b:idx_e].to(device)
+                args_sub.append(val)
+
+            kwargs_sub = {}
+            for key, val in kwargs.items():
+                if isinstance(val, torch.Tensor):
+                    val = val[idx_b:idx_e].to(device)
+                kwargs_sub[key] = val
+
+            tensors.append(func(*args_sub, **kwargs_sub))
+
+        return torch.vstack(tensors)
 
     return wrapper
 
