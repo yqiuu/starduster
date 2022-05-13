@@ -242,6 +242,9 @@ class MultiwavelengthSED(nn.Module):
                 raise ValueError(f"Unknow config: {key}.")
         self.adapter.configure(**config_adapter)
         self.detector.configure(**config_detector)
+        # The configure methods may register new buffers, the following line
+        # makes their device consistent.
+        self.to(self.adapter.device)
 
 
     @property
