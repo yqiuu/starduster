@@ -10,6 +10,7 @@ import pickle
 from os import path
 from functools import wraps
 
+import numpy as np
 import torch
 from torch import nn
 
@@ -202,6 +203,18 @@ class MultiwavelengthSED(nn.Module):
     
     def predict_absorption_fraction(self, *args):
         return torch.ravel(self.dust_emission(*self.adapter(*args))[-1])
+
+
+    def predict_attenuation(self, *args, lam_lower=5450., lam_upper=5550.):
+        filters_0 = self.detector.filters
+        filters = [[np.array([lam_lower, lam_upper]), np.ones(2)]]
+        try:
+            self.configure(filters=filters)
+            mags_no_dust = self(*args, return_ph=True, component='dust_free')
+            mags_dust = self(*args, return_ph=True, component='combine')
+        finally:
+            self.configure(filters=filters_0)
+        return mags_dust - mags_no_dust
 
 
     def configure(self, **kwargs):
