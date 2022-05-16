@@ -145,8 +145,8 @@ class MultiwavelengthSED(nn.Module):
         return_ph : bool
             If ``True``, apply filters to outputs.
         return_lum : bool
-            If ``True``, return flux density in a unit of Jansky; otherwise
-            return luminosity in a unit of L_sol.
+            If ``True``, return luminosity in a unit of L_sol; otherwise return
+            flux density in a unit of Jansky.
         component : str 
             'combine' : Return SEDs including both stellar and dust emissions.
             'dust_free': Return dust free SEDs.
