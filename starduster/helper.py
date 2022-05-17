@@ -41,6 +41,14 @@ class Helper:
         return self.recover_func[key_trans](val, lb, ub, lib)
 
 
+    def get_transform(self, target, key, lib=np):
+        return self.transform(self.get_item(target, key), key, lib)
+
+
+    def get_recover(self, target, key, lib=np):
+        return self.recover(self.get_item(target, key), key, lib)
+
+
     def transform_all(self, target, lib=np):
         output = lib.zeros_like(target)
         for i_k, (key, lb, ub) in enumerate(self.header.values()):
@@ -55,10 +63,16 @@ class Helper:
         return output
 
 
-    def get_transform(self, target, key, lib=np):
-        return self.transform(self.get_item(target, key), key, lib)
+    def transform_scale(self, key, scale):
+        lb, ub = -1., 1.
+        lb_r = self.recover(lb, key)
+        ub_r = self.recover(ub, key)
+        if self.header[key][0] == 'log':
+            lb_r = np.log10(lb_r)
+            ub_r = np.log10(ub_r)
+        return abs((lb - ub)/(lb_r - ub_r)*scale)
 
 
-    def get_recover(self, target, key, lib=np):
-        return self.recover(self.get_item(target, key), key, lib)
+    def recover_scale(self, key, scale):
+        return scale/self.transform_scale(key, 1.)
 
