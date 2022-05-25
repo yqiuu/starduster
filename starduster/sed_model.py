@@ -130,7 +130,7 @@ class MultiwavelengthSED(nn.Module):
 
 
     def forward(self,
-        *args, return_ph=False, return_lum=False, component='combine', check_bounds=False,
+        *args, return_ph=False, return_lum=False, component='combine', check_selector=False,
     ):
         """Compute multi-wavelength SEDs.
 
@@ -152,7 +152,7 @@ class MultiwavelengthSED(nn.Module):
             'dust_free': Return dust free SEDs.
             'dust_attenuation' : Return dust attenuated stellar SEDs only.
             'dust_emission' : Return dust SEDs only.
-        check_bounds : bool
+        check_selector : bool
             If ``True``, return an additional tensor indicating whether the
             input parameters are beyond the effective region.
 
@@ -165,10 +165,10 @@ class MultiwavelengthSED(nn.Module):
             A boolean array of where the input parameters are beyond the
             effective region.
         """
-        if check_bounds:
-            gp, sfh_disk, sfh_bulge, is_out = self.adapter(*args, check_bounds=check_bounds)
+        if check_selector:
+            gp, sfh_disk, sfh_bulge, log_p_in = self.adapter(*args, check_selector=check_selector)
         else:
-            gp, sfh_disk, sfh_bulge = self.adapter(*args, check_bounds=check_bounds)
+            gp, sfh_disk, sfh_bulge = self.adapter(*args, check_selector=check_selector)
 
         if component == 'dust_free':
             apply_dust = False
@@ -194,8 +194,8 @@ class MultiwavelengthSED(nn.Module):
             raise ValueError(f"Unknow component: {component}.")
         l_ret = torch.squeeze(self.detector(l_ret, return_ph, return_lum))
 
-        if check_bounds:
-            return l_ret, is_out
+        if check_selector:
+            return l_ret, log_p_in
         else:
             return l_ret
 
