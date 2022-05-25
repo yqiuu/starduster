@@ -534,6 +534,29 @@ class InterpolatedMH(SFHComponent):
         return torch.swapaxes(compute_interp_weights(params, self.log_met), 1, 2)
 
 
+class ClosedBoxMH(SFHComponent):
+    def _init(self, lib_ssp, *args):
+        met = lib_ssp.met/constants.met_sol
+        self.register_buffer('met', met)
+        self.register_buffer('met_min', met[0])
+        param_names = ['log10_met_max', 'log10_frac']
+        bounds_default = np.array([
+            [math.log10(met[0].item()), math.log10(met[-1].item())], [-3, 0]
+        ])
+        return param_names, bounds_default
+
+
+    def forward(self, params, sfh):
+        params = 10**params
+        met_max = params[:, :1]
+        met_min = met_max - (met_max - self.met_min)*(1 - params[:, 1:])
+        csfh = torch.cumsum(sfh, dim=1)
+        csfh = torch.flip(csfh/csfh[:, -1:], dims=[1])
+        met = met_min + (met_max - met_min)*csfh
+        met = torch.swapaxes(compute_interp_weights(met, self.met), 1, 2)
+        return met
+
+
 def simplex_transform(x):
     """Transform a unit hypercube into a simplex.
 
