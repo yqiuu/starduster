@@ -1,6 +1,8 @@
 from .utils import accept_reject, adapt_external
 from .sed_model import MultiwavelengthSED
 
+import math
+
 import numpy as np
 import torch
 from torch import nn
@@ -25,13 +27,13 @@ class Posterior(nn.Module):
         def target_func(params):
             x_pred, (log_p_in_disk, log_p_in_bulge) \
                 = self.sed_model(params, return_ph=True, check_selector=True)
-            mags = torch.atleast_2d(mags)
-            log_prob = self.noise_model(mags) + log_p_in_disk + log_p_in_bulge
+            x_pred = torch.atleast_2d(x_pred)
+            log_prob = self.noise_model.log_prob(x_pred) + log_p_in_disk + log_p_in_bulge
             if self.prior_model is not None:
                 log_prob = log_prob + self.prior_model.log_prob(params)
             return log_prob
 
-        return adapt_external(target_func, mode=mode, negative=negative, device=x_obs.device)
+        return adapt_external(target_func, mode=mode, negative=negative, device=device)
 
 
 class IndependentNormal(nn.Module):
