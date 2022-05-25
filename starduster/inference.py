@@ -8,294 +8,72 @@ from torch.nn import functional as F
 from tqdm import tqdm
 
 
-class ErrorFunction(nn.Module):
-    """Base class for error functions.
-
-    param_names : list
-        Free parameter names of the error functions. If None, assume no free
-        parameter.
-    bounds : array
-        An array of (min, max) to specify the bounds of the free parameters.
-    """
-    def __init__(self, param_names=None, bounds=None):
-        super().__init__()
-        if param_names is None:
-            self.n_params = 0
-            self.param_names = []
-            self.bounds = np.empty((0, 2), dtype=np.float64)
-        else:
-            self.n_params = len(param_names)
-            self.param_names = param_names
-            self.bounds = np.atleast_2d(bounds)
-            lbounds, ubounds = torch.tensor(bounds, dtype=torch.float32).T
-            self.register_buffer('lbounds', lbounds)
-            self.register_buffer('ubounds', ubounds)
-
-
-    def check_bounds(self, params):
-        """Check if any parameters are beyond the bounds.
-
-        Returns
-        -------
-        bool
-            True if any parameters are beyond the bounds.
-        """
-        assert self.n_params > 0
-        return torch.any(params <= self.lbounds, dim=-1) \
-            | torch.any(params >= self.ubounds, dim=-1)
-
-
-class Gaussian(ErrorFunction):
-    """Gaussian error function.
-
-    Return the logarithmic Gaussian errors.
-
-    Parameters
-    ----------
-    y_obs : tensor
-        Mean of the normal distribution.
-    y_err : tensor
-        Standard deviation of the normal distribution.
-    norm : bool
-        If False, only return the value in the exponent; otherwise add the
-        normalisation factor to the output.
-    """
-    def __init__(self, y_obs, y_err, norm=True):
-        super().__init__()
-        self.register_buffer('y_obs', y_obs)
-        self.register_buffer('y_err', y_err)
-        if norm:
-            self.norm = torch.sum(-torch.log(np.sqrt(2*np.pi)*y_err))
-        else:
-            self.norm = 0.
-
-
-    def forward(self, *args):
-        """
-        Parameters
-        ----------
-        y_pred : tensor (N, M)
-            Predicted data. M is the number of the observational data.
-
-        Returns
-        -------
-        log_prob : tensor
-            log probability density or log error.
-        """
-        delta = (args[0] - self.y_obs)/self.y_err
-        return torch.sum(-.5*delta*delta, dim=-1) + self.norm
-
-
-class GaussianWithScatter(ErrorFunction):
-    """Gaussian error function with a single intrinsic scatter.
-
-    Return the logarithmic Gaussian errors.
-
-    Parameters
-    ----------
-    y_obs : tensor
-        Mean of the normal distribution.
-    bounds : tuple
-        An tuple of (min, max) to specify the bounds of the intrinsic scatter.
-        The bounds should be in base 10 logarithmic scale.
-    """
-    def __init__(self, y_obs, bounds=(-2., 0.)):
-        super().__init__(['sigma'], bounds)
-        self.register_buffer('y_obs', y_obs)
-
-
-    def forward(self, *args):
-        """
-        Parameters
-        ----------
-        y_pred : tensor
-            Predicted data. M is the number of the observational data.
-        log_sigma : tensor (1, N)
-            log intrinsic scatter (10 base).
-
-        Returns
-        -------
-        log_prob : tensor
-            log probability density or log error.
-        """
-        y_pred, log_sigma = args
-        sigma = 10**log_sigma
-        delta = (y_pred - self.y_obs)/sigma
-        return torch.sum(-.5*delta*delta, dim=-1) \
-            - self.y_obs.size(0)*torch.ravel(torch.log(np.sqrt(2*np.pi)*sigma))
-
-
 class Posterior(nn.Module):
     """A posterior distribution that can be passed to various optimisation and
     sampling tools.
-
-    Parameters
-    ----------
-    sed_model : MultiwavelengthSED
-        The target SED model.
-    error_func : ErrorFunction
-        Error function.
     """
-    def __init__(self, sed_model, error_func=None):
+    def __init__(self, sed_model, noise_model, prior_model=None):
         super().__init__()
         self.sed_model = sed_model
-        self.error_func = error_func
-        self.configure_output_mode()
+        self.noise_model = noise_model
+        self.prior_model = prior_model
 
 
-    def forward(self, params):
-        model_input_size = self.sed_model.input_size
-        if self._output_mode == 'numpy_grad':
-            params = torch.tensor(
-                params, dtype=torch.float32, requires_grad=True
-            )
-            p_model = params[:model_input_size]
-            p_error = params[model_input_size:]
-        else:
-            params = torch.as_tensor(
-                params, dtype=torch.float32, device=self.sed_model.adapter.device
-            )
-            params = torch.atleast_2d(params)
-            p_model = params[:, :model_input_size]
-            p_error = params[:, model_input_size:]
-
-        y_pred, is_out = self.sed_model(p_model, return_ph=True, check_bounds=True)
-        if self.error_func.n_params > 0:
-            is_out |= self.error_func.check_bounds(p_error)
-        log_post = self._sign*(self.error_func(y_pred, p_error) + self.log_out*is_out)
-
-        if self._output_mode == 'numpy':
-            return np.squeeze(log_post.detach().cpu().numpy())
-        elif self._output_mode == 'numpy_grad':
-            log_post.backward()
-            return log_post.detach().cpu().numpy(), np.array(params.grad.cpu(), dtype=np.float64)
-        return log_post
-
-
-    def configure_output_mode(self, output_mode='torch', negative=False, log_out=-1e15):
-        """Configure the output mode.
-
-        Parameters
-        ----------
-        output_mode : str {'torch', 'numpy', 'numpy_grad'}
-            'torch' : Return a PyTorch tensor.
-            'numpy' : Return a numpy array.
-            'numpy_grad' : Return a tuple with the second element be the
-            gradient.
-
-        negative : bool
-            If True, multiply the output by -1.
-        log_out : float
-            Add this value to the output if the input is beyond the effective
-            region.
-        """
-        if output_mode in ['torch', 'numpy', 'numpy_grad']:
-            self._output_mode = output_mode
-        else:
-            params_full = torch.zeros(
-                params.size(0), self.sed_model.input_size, device=params.device
-            )
-            params_full[:, self.free_inds] = params
-            params_full[:, self.fixed_inds] = params_fixed
-            return params_full
-
-
-    def create_target_func(self, mags_obs, fixed_params, mode='numpy'):
-        self.noise_model.set_plate(['mags_obs'], mags_obs)
-        self.sed_model.configure(pn_gp=GalaxyParameter(boundary='none', **fixed_params))
+    def create_target_func(self, mode='numpy', negative=False, device='cpu'):
+        self.to(device)
 
         def target_func(params):
-            mags, log_p_in = self.sed_model(params, return_ph=True, check_selector=True)
+            x_pred, (log_p_in_disk, log_p_in_bulge) \
+                = self.sed_model(params, return_ph=True, check_selector=True)
             mags = torch.atleast_2d(mags)
-            log_prob = self.noise_model(mags) + self.derive_l_constrain(log_p_in)
+            log_prob = self.noise_model(mags) + log_p_in_disk + log_p_in_bulge
             if self.prior_model is not None:
                 log_prob = log_prob + self.prior_model.log_prob(params)
             return log_prob
 
-        return adapt_external(target_func, mode='numpy', device=mags_obs.device)
+        return adapt_external(target_func, mode=mode, negative=negative, device=x_obs.device)
 
 
-    def derive_l_constrain(self, log_p_in):
-        log_p_in_disk, log_p_in_bulge = log_p_in
-        return log_p_in_disk + log_p_in_bulge
+class IndependentNormal(nn.Module):
+    def __init__(self, mu, sigma, is_normed=True):
+        super().__init__()
+        self.register_buffer('mu', mu)
+        self.register_buffer('sigma', sigma)
+        self.register_buffer('log_norm', -torch.sum(.5*torch.log(2*math.pi*sigma*sigma)))
+        self.is_normed = is_normed
 
-#    def forward(self, params):
-#        model_input_size = self.sed_model.input_size
-#        if self._output_mode == 'numpy_grad':
-#            params = torch.tensor(
-#                params, dtype=torch.float32, requires_grad=True
-#            )
-#            p_model = params[:model_input_size]
-#            p_error = params[model_input_size:]
-#        else:
-#            params = torch.as_tensor(
-#                params, dtype=torch.float32, device=self.sed_model.adapter.device
-#            )
-#            params = torch.atleast_2d(params)
-#            p_model = params[:, :model_input_size]
-#            p_error = params[:, model_input_size:]
-#
-#        y_pred, is_out = self.sed_model(p_model, return_ph=True, check_bounds=True)
-#        if self.error_func.n_params > 0:
-#            is_out |= self.error_func.check_bounds(p_error)
-#        log_post = self._sign*(self.error_func(y_pred, p_error) + self.log_out*is_out)
-#
-#        if self._output_mode == 'numpy':
-#            return np.squeeze(log_post.detach().cpu().numpy())
-#        elif self._output_mode == 'numpy_grad':
-#            log_post.backward()
-#            return log_post.detach().cpu().numpy(), np.array(params.grad.cpu(), dtype=np.float64)
-#        return log_post
-#
-#
-#    def configure_output_mode(self, output_mode='torch', negative=False, log_out=-1e15):
-#        """Configure the output mode.
-#
-#        Parameters
-#        ----------
-#        output_mode : str {'torch', 'numpy', 'numpy_grad'}
-#            'torch' : Return a PyTorch tensor.
-#            'numpy' : Return a numpy array.
-#            'numpy_grad' : Return a tuple with the second element be the
-#            gradient.
-#
-#        negative : bool
-#            If True, multiply the output by -1.
-#        log_out : float
-#            Add this value to the output if the input is beyond the effective
-#            region.
-#        """
-#        if output_mode in ['torch', 'numpy', 'numpy_grad']:
-#            self._output_mode = output_mode
-#        else:
-#            raise ValueError(f"Unknown output mode: {output_mode}.")
-#        if negative:
-#            self._sign = -1.
-#        else:
-#            self._sign = 1.
-#        self.log_out = log_out
-#
-#
-#
-#
-#    @property
-#    def input_size(self):
-#        """Number of input parameters."""
-#        return self.sed_model.adapter.input_size + self.error_func.n_params
-#
-#
-#    @property
-#    def param_names(self):
-#        """Parameter names"""
-#        return self.sed_model.adapter.param_names + self.error_func.param_names
-#
-#
-#    @property
-#    def bounds(self):
-#        """Bounds of input parameters."""
-#        return np.vstack([self.sed_model.adapter.bounds, self.error_func.bounds])
-#
->>>>>>> 1344837... Add adapt_external:starduster/posterior.py
+
+    def sample(self, size):
+        mu = self.mu
+        return mu + self.sigma*torch.randn(*size, mu.size(0), device=mu.device)
+
+
+    def log_prob(self, x):
+        delta = (x - self.mu)/self.sigma
+        log_prob = -.5*torch.sum(delta*delta, dim=-1, keepdim=True)
+        if self.is_normed:
+            log_prob += self.log_norm
+        return log_prob
+
+
+class SmoothedUniform(nn.Module):
+    def __init__(self, bounds, eps=1e-3):
+        super().__init__()
+        lb, ub = bounds.T
+        self.register_buffer('lb', lb)
+        self.register_buffer('ub', ub)
+        self.register_buffer('alpha', math.pi/(eps*(ub - lb))**2)
+        self.register_buffer('log_norm', -torch.sum(torch.log((1 + eps)*(ub - lb))))
+
+
+    def log_prob(self, x):
+        cond_1 = x < self.lb
+        cond_2 = x >= self.ub
+        d1 = (x - self.lb)
+        d2 = (x - self.ub)
+        return torch.sum(-self.alpha*(d1*d1*cond_1 + d2*d2*cond_2), dim=-1, keepdim=True) \
+            + self.log_norm
+
 
 class OptimizerWrapper(nn.Module):
     """A wrapper that allows a posterior distribution to be minimised by
