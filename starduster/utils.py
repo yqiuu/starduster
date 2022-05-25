@@ -226,16 +226,25 @@ def accept_reject(n_samp, n_col, sampler, condition, max_iter=10000):
         return samps_accept[:n_samp]
 
 
-def adapt_external(func, mode='numpy', device='cpu'):
+def adapt_external(func, mode='numpy', negative=False, device='cpu'):
     def wrapper(params):
-        if mode == 'numpy':
+        if mode == 'torch':
+            val = func(params)
+            if negative:
+                val = -val
+            return val
+        elif mode == 'numpy':
             params = torch.as_tensor(params, dtype=torch.float32, device=device)
             with torch.no_grad():
                 val = np.squeeze(func(params).cpu().numpy())
+            if negative:
+                val = -val
             return val
         elif mode == 'numpy_grad':
             params = torch.tensor(params, dtype=torch.float32, device=device, requires_grad=True)
             val = func(params)
+            if negative:
+                val = -val
             val.backward()
             val = np.squeeze(val.cpu().detach().numpy())
             # There may be a issue when the gradient is not float64 for scipy algorithms
