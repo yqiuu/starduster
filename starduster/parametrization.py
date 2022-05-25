@@ -486,7 +486,7 @@ class AnalyticSFH(SFHComponent):
 class ExponentialSFH(AnalyticSFH):
     def _init(self, lib_ssp, *args):
         param_names = ['log10_tau', 'log10_t0']
-        log_t0_min = math.log10(lib_ssp.tau_edges[0])
+        log_t0_min = math.log10(lib_ssp.tau_edges[1])
         log_t0_max = math.log10(lib_ssp.tau_edges[-1])
         bounds_default = np.array([(log_t0_max - 1, log_t0_max + 2), (log_t0_min, log_t0_max)])
         return param_names, bounds_default
