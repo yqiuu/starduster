@@ -101,19 +101,20 @@ class Analyzer:
             else:
                 raise ValueError(f"Unknown input_type: '{calc.input_type}'.")
 
-            if name_disk is None:
-                summary[name] = calc(*args)
-            else:
-                # Always store the properties of both the disk and bulge
-                # components. The unwanted property will be deleted later.
-                summary[name_disk], summary[name_bulge] = calc(*args, separate=True)
+            with torch.no_grad():
+                if name_disk is None:
+                    summary[name] = calc(*args)
+                else:
+                    # Always store the properties of both the disk and bulge
+                    # components. The unwanted property will be deleted later.
+                    summary[name_disk], summary[name_bulge] = calc(*args, separate=True)
 
         for out_name in list(summary.keys()):
             if out_name not in prop_names:
                 del summary[out_name]
             else:
                 if output_type == 'numpy':
-                    summary[out_name] = summary[out_name].numpy()
+                    summary[out_name] = summary[out_name].cpu().numpy()
                 elif output_type == 'torch':
                     pass
                 else:
@@ -318,7 +319,7 @@ class Analyzer:
 
         Returns
         -------
-        tensor or (tensor, tensor) [M_sol]
+        tensor or (tensor, tensor) [Z_sol]
             Mass weighted metallicity.
         """
         def compute_average(met, sfh):
@@ -327,12 +328,79 @@ class Analyzer:
 
         sfh_disk_0 = self.lib_ssp.sum_over_age(sfh_disk_0)
         sfh_bulge_0 = self.lib_ssp.sum_over_age(sfh_bulge_0)
+        met = self.lib_ssp.met.clone().to(gp_0.device)
         if separate:
-            met_disk = compute_average(self.lib_ssp.met, sfh_disk_0)
-            met_bulge = compute_average(self.lib_ssp.met, sfh_bulge_0)
+            met_disk = compute_average(met, sfh_disk_0)
+            met_bulge = compute_average(met, sfh_bulge_0)
             return met_disk, met_bulge
         else:
-            return compute_average(self.lib_ssp.met, sfh_disk_0 + sfh_bulge_0)
+            return compute_average(met, sfh_disk_0 + sfh_bulge_0)
+
+
+    @register_calculator('sfh', 'recovered_params', is_separable=True)
+    def compute_sfh(self, gp_0, sfh_disk_0, sfh_bulge_0, separate=False):
+        """Compute star formation history.
+
+        Parameters
+        ----------
+        gp_0 : tensor
+            Recovered galaxy parameters.
+        sfh_disk_0 : tensor [M_sol]
+            Recovered SFH parameters of the disk component.
+        sfh_bulge_0: tensor [M_sol]
+            Recovered SFH parameters of the bulge component.
+        separate : bool
+            If True, return the properties of the disk and bulge components
+            separately; otherwise return the total value.
+
+        Returns
+        -------
+        tensor or (tensor, tensor) [M_sol]
+            Stellar mass in each time bin.
+        """
+        sfh_disk_0 = self.lib_ssp.sum_over_met(sfh_disk_0)
+        sfh_bulge_0 = self.lib_ssp.sum_over_met(sfh_bulge_0)
+        if separate:
+            return sfh_disk_0, sfh_bulge_0
+        else:
+            return sfh_disk_0 + sfh_bulge_0
+
+
+    @register_calculator('mh', 'recovered_params', is_separable=True)
+    def compute_mh(self, gp_0, sfh_disk_0, sfh_bulge_0, separate=False):
+        """Compute mass weighted metallicity history.
+
+        Parameters
+        ----------
+        gp_0 : tensor
+            Recovered galaxy parameters.
+        sfh_disk_0 : tensor [M_sol]
+            Recovered SFH parameters of the disk component.
+        sfh_bulge_0: tensor [M_sol]
+            Recovered SFH parameters of the bulge component.
+        separate : bool
+            If True, return the properties of the disk and bulge components
+            separately; otherwise return the total value.
+
+        Returns
+        -------
+        tensor or (tensor, tensor) [Z_sol]
+            Mass weighted metallicity history.
+        """
+        def compute_average(met, sfh):
+            met_mean = torch.sum(met*sfh, dim=dim_met)/torch.sum(sfh, dim=dim_met)
+            return met_mean/constants.met_sol
+
+        dim_met = self.lib_ssp.dim_met
+        sizes = [1, 1, 1]
+        sizes[dim_met] = -1
+        met = self.lib_ssp.met.unflatten(0, sizes).clone().to(gp_0.device)
+        if separate:
+            met_disk = compute_average(met, sfh_disk_0)
+            met_bulge = compute_average(met, sfh_bulge_0)
+            return met_disk, met_bulge
+        else:
+            return compute_average(met, sfh_disk_0 + sfh_bulge_0)
 
 
     def recover_params(self, params, recover_sfh=True):
@@ -355,7 +423,8 @@ class Analyzer:
         sfh_bulge_0: tensor [M_sol]
             (Recovered) SFH parameters of the bulge component.
         """
-        gp, sfh_disk, sfh_bulge = self.sed_model.adapter(params)
+        with torch.no_grad():
+            gp, sfh_disk, sfh_bulge = self.sed_model.adapter(params)
         gp_0 = self.helper.recover_all(gp, torch)
         if recover_sfh:
             sfh_disk_0, sfh_bulge_0 = self.recover_sfh(gp_0, sfh_disk, sfh_bulge)
@@ -384,8 +453,9 @@ class Analyzer:
             Recovered SFH parameters of the bulge component.
         """
         def recover(sfh, l_norm):
-            return self.lib_ssp.reshape_sfh(sfh)/self.lib_ssp.norm*l_norm[:, None, None]
+            return self.lib_ssp.reshape_sfh(sfh)/l_ssp_norm*l_norm[:, None, None]
 
+        l_ssp_norm = self.lib_ssp.norm.clone().to(gp_0.device)
         l_norm = self.helper.get_item(gp_0, 'l_norm')
         b_to_t = self.helper.get_item(gp_0, 'b_to_t')
 
