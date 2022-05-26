@@ -39,7 +39,7 @@ class Parametrization(nn.Module):
         lib_ssp : SSPLibrary
             A simple stellar population library.
         """
-        param_names, fixed_params, bounds_default, bounds, clip_bounds \
+        param_names, fixed_params, bounds_default, bounds, boundary \
             = self._init(helper, lib_ssp, *self._args)
         params_default, free_inds = self._derive_default_params(param_names, fixed_params)
         self._update_bounds(param_names, bounds_default, bounds)
@@ -61,7 +61,7 @@ class Parametrization(nn.Module):
             self.register_buffer('bound_radius', .5*(ubounds - lbounds))
             self.register_buffer('bound_centre', .5*(ubounds + lbounds))
             self.bounds = bounds
-        self.clip_bounds = clip_bounds
+        self.boundary = boundary
 
 
     def _init(self, helper, lib_ssp, *args):
@@ -89,11 +89,13 @@ class Parametrization(nn.Module):
         bounds : array
             An array of (min, max) to specify the working bounds of the
             parameters.
-        clip_bounds : bool
-            If true, when an input value is beyond a bound, set it to be the
-            same with the bound.
+        boundary : str {'none', 'clipping', 'reflecting'}
+            'none' : Do not apply any transform.
+            'clipping' : Clip the parameters when they are beyond the bounds.
+            'reflecting' : Apply reflecting boundary condition to the
+            parameters.
         """
-        # return param_names, fixed_params, bounds_default, bounds, clip_bounds
+        # return param_names, fixed_params, bounds_default, bounds, boundary
         pass
 
 
@@ -124,7 +126,7 @@ class Parametrization(nn.Module):
 
 
     def forward(self, params):
-        params = self._clip_bounds(params)
+        params = self.boundary_transform(params)
         params = self._set_fixed_params(params)
         params = self.derive_full_params(params)
         return params
@@ -144,21 +146,53 @@ class Parametrization(nn.Module):
         return params_out
 
 
-    def _clip_bounds(self, params):
-        if self.clip_bounds and self.input_size > 0:
-            eps = 1e-6
-            params = (params - self.bound_centre)/self.bound_radius
-            params = F.hardtanh(params, -1 + eps, 1 - eps)
-            params = self.bound_radius*params + self.bound_centre
-        return params
-
-
     def check_bounds(self, params):
         if self.input_size == 0:
             return torch.full((params.size(0),), False)
         else:
             return torch.any(params <= self.lbounds, dim=-1) \
                 | torch.any(params >= self.ubounds, dim=-1)
+
+
+    def boundary_transform(self, params):
+        if self.input_size > 0:
+            if self.boundary == 'none':
+                pass
+            elif self.boundary == 'clipping':
+                params = self._clipping_boundary(params)
+            elif self.boundary == 'reflecting':
+                params = self._reflecting_boundary(params)
+            elif self.boundary == 'absorbing':
+                params = self._absorbing_boundary(params)
+            else:
+                raise ValueError(f"Unknown boundary: {self.boundary}.")
+        return params
+
+
+    def _clipping_boundary(self, params):
+        eps = 1e-6
+        params = (params - self.bound_centre)/self.bound_radius
+        params = F.hardtanh(params, -1 + eps, 1 - eps)
+        params = self.bound_radius*params + self.bound_centre
+        return params
+
+
+    def _reflecting_boundary(self, params):
+        cond_left = params < self.lbounds
+        cond_right = params >= self.ubounds
+
+        params = (params - self.lbounds)/(self.ubounds - self.lbounds)
+        params =  (1 - torch.exp(params))*cond_left \
+            + params*(~cond_left & ~cond_right) \
+            + torch.exp(1 - params)*cond_right
+        params = self.lbounds + (self.ubounds - self.lbounds)*params
+        return params
+
+
+    def _absorbing_boundary(self, params):
+        cond = (params >= self.lbounds) & (params < self.ubounds)
+        params_rand = self.lbounds + (self.ubounds - self.lbounds)*torch.rand_like(params)
+        return params*cond + params_rand*~cond
 
 
 class GalaxyParameter(Parametrization):
@@ -170,18 +204,18 @@ class GalaxyParameter(Parametrization):
         The target SED model.
     bounds : array
         An array of (min, max) to specify the working bounds of the parameters.
-    clip_bounds : bool
+    boundary : bool
         If true, when an input value is beyond a bound, set it to be the same
         with the bound.
     fixed_params : dict
         A dictionary to specify fixed parameters. Use the name of the parameter
         as the key.
     """
-    def __init__(self, bounds=None, clip_bounds=True, **fixed_params):
-        super().__init__(bounds, clip_bounds, fixed_params)
+    def __init__(self, bounds=None, boundary='clipping', **fixed_params):
+        super().__init__(bounds, boundary, fixed_params)
 
 
-    def _init(self, helper, lib_ssp, bounds, clip_bounds, fixed_params):
+    def _init(self, helper, lib_ssp, bounds, boundary, fixed_params):
         param_names = helper.header.keys()
         bounds_default = [(-1., 1.)]*len(helper.header)
         # Transform the parameters
@@ -198,7 +232,7 @@ class GalaxyParameter(Parametrization):
         fixed_params = fixed_params.copy()
         for key, val in fixed_params.items():
             fixed_params[key] = helper.transform(val, key)
-        return param_names, fixed_params, bounds_default, bounds, clip_bounds
+        return param_names, fixed_params, bounds_default, bounds, boundary
 
 
 class VanillaGrid(Parametrization):
@@ -213,24 +247,24 @@ class VanillaGrid(Parametrization):
         into a simplex.
     bounds : array
         An array of (min, max) to specify the working bounds of the parameters.
-    clip_bounds : bool
+    boundary : bool
         If true, when an input value is beyond a bound, set it to be the same
         with the bound.
     fixed_params : dict
         A dictionary to specify fixed parameters. Use the name of the parameter
         as the key.
     """
-    def __init__(self, simplex_transform=False, bounds=None, clip_bounds=True, **fixed_params):
-        super().__init__(simplex_transform, bounds, clip_bounds, fixed_params)
+    def __init__(self, simplex_transform=False, bounds=None, boundary='clipping', **fixed_params):
+        super().__init__(simplex_transform, bounds, boundary, fixed_params)
 
 
-    def _init(self, helper, lib_ssp, simplex_transform, bounds, clip_bounds, fixed_params):
+    def _init(self, helper, lib_ssp, simplex_transform, bounds, boundary, fixed_params):
         param_names = [f'sfr_{i_sfr}' for i_sfr in range(lib_ssp.n_ssp)]
         bounds_default = [(0., 1.)]*lib_ssp.n_ssp
 
         self.simplex_transform = simplex_transform
 
-        return param_names, fixed_params, bounds_default, bounds, clip_bounds
+        return param_names, fixed_params, bounds_default, bounds, boundary
 
 
     def derive_full_params(self, params):
@@ -251,18 +285,18 @@ class CompositeGrid(Parametrization):
         Parametrization of the metallicity history.
     bounds : array
         An array of (min, max) to specify the working bounds of the parameters.
-    clip_bounds : bool
+    boundary : bool
         If true, when an input value is beyond a bound, set it to be the same
         with the bound.
     fixed_params : dict
         A dictionary to specify fixed parameters. Use the name of the parameter
         as the key.
     """
-    def __init__(self, sfh_model, mh_model, bounds=None, clip_bounds=True, **fixed_params):
-        super().__init__(sfh_model, mh_model, bounds, clip_bounds, fixed_params)
+    def __init__(self, sfh_model, mh_model, bounds=None, boundary='clipping', **fixed_params):
+        super().__init__(sfh_model, mh_model, bounds, boundary, fixed_params)
 
 
-    def _init(self, helper, lib_ssp, sfh_model, mh_model, bounds, clip_bounds, fixed_params):
+    def _init(self, helper, lib_ssp, sfh_model, mh_model, bounds, boundary, fixed_params):
         param_names_sfh, bounds_default_sfh = sfh_model.enable(lib_ssp)
         param_names_mh, bounds_default_mh = mh_model.enable(lib_ssp)
         param_names = param_names_sfh + param_names_mh
@@ -274,7 +308,7 @@ class CompositeGrid(Parametrization):
         self.need_light_norm = getattr(sfh_model, 'need_light_norm', False)
         self.register_buffer('light_norm', torch.ravel(lib_ssp.norm))
 
-        return param_names, fixed_params, bounds_default, bounds, clip_bounds
+        return param_names, fixed_params, bounds_default, bounds, boundary
 
 
     def derive_full_params(self, params):
@@ -435,7 +469,7 @@ class InterpolatedSFH(SFHComponent):
 
 
 class AnalyticSFH(SFHComponent):
-    def __init__(self, n_sub=4):
+    def __init__(self, n_sub=16):
         self.n_sub = n_sub
         super().__init__()
 
@@ -486,9 +520,9 @@ class AnalyticSFH(SFHComponent):
 class ExponentialSFH(AnalyticSFH):
     def _init(self, lib_ssp, *args):
         param_names = ['log10_tau', 'log10_t0']
-        log_t0_min = math.log10(lib_ssp.tau_edges[1])
+        log_t0_min = math.log10(lib_ssp.tau_edges[0])
         log_t0_max = math.log10(lib_ssp.tau_edges[-1])
-        bounds_default = np.array([(log_t0_max - 1, log_t0_max + 2), (log_t0_min, log_t0_max)])
+        bounds_default = np.array([(log_t0_max - 1.5, log_t0_max + 1.5), (log_t0_min, log_t0_max)])
         return param_names, bounds_default
 
 
@@ -505,7 +539,7 @@ class DelayedExponentialSFH(AnalyticSFH):
         param_names = ['log10_tau', 'log10_t0']
         log_t0_min = math.log10(lib_ssp.tau_edges[1])
         log_t0_max = math.log10(lib_ssp.tau_edges[-1])
-        bounds_default = np.array([(log_t0_max - 1, log_t0_max + 2), (log_t0_min, log_t0_max)])
+        bounds_default = np.array([(log_t0_max - 1.5, log_t0_max + 1.5), (log_t0_min, log_t0_max)])
         return param_names, bounds_default
 
 
