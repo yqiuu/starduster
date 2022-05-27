@@ -209,7 +209,7 @@ class MultiwavelengthSED(nn.Module):
         filters_0 = self.detector.filters
         filters = [[np.array([lam_lower, lam_upper]), np.ones(2)]]
         try:
-            self.configure(filters=filters)
+            self.configure(filters=filters, ab_mag=True)
             mags_no_dust = self(*args, return_ph=True, component='dust_free')
             mags_dust = self(*args, return_ph=True, component='combine')
         finally:
