@@ -8,6 +8,29 @@ import torch
 
 
 class SSPLibrary:
+    """Simple stellar population library.
+
+    The SSP library should be a dictionary stored as a pickle file. The
+    dictionary should have the following keys:
+    - lam: Wavelength. [micron]
+    - met: Metallicity. [dimensionless]
+    - tau: Stellar age. [yr]
+    - flx: (lam, met, age). Time averaged SSP spectrum. [L_sol/micron]
+    - norm: (met, age). Normalization of the spectrum. [L_sol]
+    - tau_edges: Stellar age bins of the integration. [yr]
+
+    Parameters
+    ----------
+    fname : str
+        File name of the SSP library.
+    lam_base : array
+        Wavelength grid that is used in the radiative simulation.
+    regrid : str
+        Option to choose a different wavelength grid. See
+        MultiwavelengthSED.from_builtin.
+    eps_reduce : float
+        Tolerance parameter for the reduced spectrum.
+    """
     def __init__(self, fname, lam_base, regrid, eps_reduce):
         lib_ssp = pickle.load(open(fname, "rb"))
         lam_ssp = lib_ssp['lam'] # mircon
@@ -63,6 +86,18 @@ class SSPLibrary:
 
 
     def reshape_sfh(self, sfh):
+        """Convert flattened star formation history into 2D grid.
+
+        Parameters
+        ----------
+        sfh : tensor
+            (N, D_met*D_age).
+
+        Returns
+        -------
+        tensor
+            (N, D_met, D_age).
+        """
         return torch.atleast_2d(sfh).reshape((-1, *self.sfh_shape))
 
 
@@ -73,7 +108,7 @@ class SSPLibrary:
     def sum_over_met(self, sfh):
         return self.reshape_sfh(sfh).sum(dim=self.dim_met)
 
-    
+
     def mass_to_light(self, sfh_mass):
         """Transform mass to light.
 
