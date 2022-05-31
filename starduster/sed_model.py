@@ -205,9 +205,9 @@ class MultiwavelengthSED(nn.Module):
         return torch.ravel(self.dust_emission(*self.adapter(*args))[-1])
 
 
-    def predict_attenuation(self, *args, lam_lower=5450., lam_upper=5550.):
+    def predict_attenuation(self, *args, windows):
         filters_0 = self.detector.filters
-        filters = [[np.array([lam_lower, lam_upper]), np.ones(2)]]
+        filters = [[np.array([lam_l, lam_u]), np.ones(2)] for lam_l, lam_u in windows]
         try:
             self.configure(filters=filters, ab_mag=True)
             mags_no_dust = self(*args, return_ph=True, component='dust_free')
