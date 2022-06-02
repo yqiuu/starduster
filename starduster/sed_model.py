@@ -201,8 +201,13 @@ class MultiwavelengthSED(nn.Module):
             return l_ret
 
     
-    def predict_absorption_fraction(self, *args):
-        return torch.ravel(self.dust_emission(*self.adapter(*args))[-1])
+    def predict_absorption_fraction(self, *args, return_lum=False):
+        gp, sfh_disk, sfh_bulge = self.adapter(*args)
+        frac = torch.ravel(self.dust_emission(gp, sfh_disk, sfh_bulge)[-1])
+        if return_lum:
+            return frac*self.helper.get_recover(gp, 'l_norm')
+        else:
+            return frac
 
 
     def predict_attenuation(self, *args, windows):
