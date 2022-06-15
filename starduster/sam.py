@@ -17,11 +17,16 @@ class SemiAnalyticConventer:
         The target SED model.
     age_bins : array [yr]
         Stellar age bins.
+    frac_recycle : float
+        Mass recycling fraction. Use this parameter for semi-analytic models
+        that assume instantaneous supernova feedback and do not correct the
+        output mass in the star formation history.
     """
-    def __init__(self, sed_model, age_bins):
+    def __init__(self, sed_model, age_bins, frac_recycle=0.):
         self.helper = sed_model.helper
         self.lib_ssp = sed_model.lib_ssp
         self._tau_matrix = self._create_tau_matrix(age_bins)
+        self._frac_recycle = frac_recycle
 
 
     def __call__(self,
@@ -63,8 +68,11 @@ class SemiAnalyticConventer:
         """
         den_dust = m_dust/(2*np.pi*r_dust*r_dust)
         r_dust_to_rd = r_dust/r_disk
-        sfh_disk, l_norm_disk = self._derive_sfh(sfh_mass_disk, sfh_metal_mass_disk)
-        sfh_bulge, l_norm_bulge = self._derive_sfh(sfh_mass_bulge, sfh_metal_mass_bulge)
+        factor = 1./(1. - self._frac_recycle) # Correct mass recycling
+        sfh_disk, l_norm_disk \
+            = self._derive_sfh(factor*sfh_mass_disk, factor*sfh_metal_mass_disk)
+        sfh_bulge, l_norm_bulge \
+            = self._derive_sfh(factor*sfh_mass_bulge, factor*sfh_metal_mass_bulge)
         l_norm = l_norm_disk + l_norm_bulge
         b_to_t = l_norm_bulge/l_norm
         gp_0 = np.vstack([theta, den_dust, r_dust_to_rd, r_disk, r_bulge, l_norm, b_to_t]).T
