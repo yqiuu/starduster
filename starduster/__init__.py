@@ -10,6 +10,7 @@ from .dust_emission import *
 from .lib_ssp import *
 from .inference import *
 from .analyzer import *
+from .sam import *
 from .utils import *
 from .evaluator import *
 from .modules import *
