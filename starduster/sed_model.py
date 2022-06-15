@@ -210,16 +210,22 @@ class MultiwavelengthSED(nn.Module):
             return frac
 
 
-    def predict_attenuation(self, *args, windows):
-        filters_0 = self.detector.filters
-        filters = [[np.array([lam_l, lam_u]), np.ones(2)] for lam_l, lam_u in windows]
-        try:
-            self.configure(filters=filters, ab_mag=True)
-            mags_no_dust = self(*args, return_ph=True, component='dust_free')
-            mags_dust = self(*args, return_ph=True, component='combine')
-        finally:
-            self.configure(filters=filters_0)
-        return mags_dust - mags_no_dust
+    def predict_attenuation(self, *args, windows=None, lam_max=1.):
+        if windows is None:
+            cond = self.lam < lam_max
+            f_no_dust = self(*args, return_ph=False, component='dust_free')[:, cond]
+            f_dust = self(*args, return_ph=False, component='dust_attenuation')[:, cond]
+            return -2.5*torch.log10(f_dust/f_no_dust)
+        else:
+            filters_0 = self.detector.filters
+            filters = [[np.array([lam_l, lam_u]), np.ones(2)] for lam_l, lam_u in windows]
+            try:
+                self.configure(filters=filters, ab_mag=True)
+                mags_no_dust = self(*args, return_ph=True, component='dust_free')
+                mags_dust = self(*args, return_ph=True, component='combine')
+            finally:
+                self.configure(filters=filters_0)
+            return mags_dust - mags_no_dust
 
 
     def configure(self, **kwargs):
