@@ -68,7 +68,7 @@ def create_converter():
     n_sfh = 10
     age_bins = np.logspace(5.8, 10.5, n_sfh + 1)
     sed_model = starduster.MultiwavelengthSED.from_builtin()
-    converter = starduster.SemiAnalyticConventer(sed_model, age_bins)
+    converter = starduster.SemiAnalyticConventer(sed_model, age_bins, frac_recycle=0.44)
     return converter, age_bins
 
 
