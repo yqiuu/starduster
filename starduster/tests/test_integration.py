@@ -42,9 +42,8 @@ def test_integration():
         y_test = sed_model(x_test, return_ph=True)
         y_err = torch.full_like(y_test, eps)
     # Create posterior
-    likelihood = starduster.Gaussian(y_test, y_err, norm=False)
-    posterior = starduster.Posterior(sed_model, likelihood)
-    posterior.configure_output_mode(output_mode='torch', negative=True, log_out=0.)
+    noise_model = starduster.IndependentNormal(y_test, y_err)
+    posterior = starduster.create_posterior(sed_model, noise_model, mode='torch', negative=True)
     # Fit the test data
     sampler = lambda n_samp: x_test*(1 + eps*(2*torch.rand(n_samp, len(x_test)) - 1))
     x0 = starduster.sample_effective_region(sed_model, sampler=sampler)
