@@ -3,7 +3,7 @@ import sedpy
 import starduster
 
 
-def test_integration():
+def test_posterior():
     torch.set_num_threads(1)
     torch.manual_seed(831)
     # Create SED model
