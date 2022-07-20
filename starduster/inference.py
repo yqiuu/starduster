@@ -10,30 +10,27 @@ from torch.nn import functional as F
 from tqdm import tqdm
 
 
-class Posterior(nn.Module):
-    """A posterior distribution that can be passed to various optimisation and
-    sampling tools.
+def create_posterior(
+    sed_model, noise_model, prior_model=None, mode='numpy', negative=False, device=None
+):
+    """Create a posterior function that can be passed to various optimisation
+    and sampling tools.
     """
-    def __init__(self, sed_model, noise_model, prior_model=None):
-        super().__init__()
-        self.sed_model = sed_model
-        self.noise_model = noise_model
-        self.prior_model = prior_model
+    if device is not None:
+        sed_model.to(device)
+        noise_model.to(device)
+        prior_model.to(device)
 
+    def target_func(params):
+        x_pred, (log_p_in_disk, log_p_in_bulge) \
+            = sed_model(params, return_ph=True, check_selector=True)
+        x_pred = torch.atleast_2d(x_pred)
+        log_prob = noise_model.log_prob(x_pred) + log_p_in_disk + log_p_in_bulge
+        if prior_model is not None:
+            log_prob = log_prob + prior_model.log_prob(params)
+        return log_prob
 
-    def create_target_func(self, mode='numpy', negative=False, device='cpu'):
-        self.to(device)
-
-        def target_func(params):
-            x_pred, (log_p_in_disk, log_p_in_bulge) \
-                = self.sed_model(params, return_ph=True, check_selector=True)
-            x_pred = torch.atleast_2d(x_pred)
-            log_prob = self.noise_model.log_prob(x_pred) + log_p_in_disk + log_p_in_bulge
-            if self.prior_model is not None:
-                log_prob = log_prob + self.prior_model.log_prob(params)
-            return log_prob
-
-        return adapt_external(target_func, mode=mode, negative=negative, device=device)
+    return adapt_external(target_func, mode=mode, negative=negative, device=device)
 
 
 class IndependentNormal(nn.Module):
