@@ -271,6 +271,84 @@ class MultiwavelengthSED(nn.Module):
         self.to(self.adapter.device)
 
 
+    def create_skifile(self, params, prefix, dirname='./'):
+        """Create inputs to run SKIRT.
+
+        Parameters
+        ----------
+        params : tensor
+            Flattened input SED parameters. The user should set
+            ``flat_input=True`` in the configuration. This method can only
+            create one set of input files at a time.
+        prefix : str
+            Prefix for the saved files.
+        dirname : str
+            Directory for the saved files.
+        """
+        assert len(params.shape) == 1, "Create one set of files at a time."
+        dir_data = path.join(path.dirname(path.abspath(__file__)), "data")
+        gp, sfh_disk, sfh_bulge = self.adapter(params)
+
+        theta, den_dust, r_dust_to_rd, r_disk, r_bulge, l_norm, b_to_t \
+            = np.squeeze(self.helper.recover_all(np.atleast_2d(gp.numpy())))
+        r_dust = r_disk*r_dust_to_rd
+        h_dust = h_disk = .1*r_disk
+        m_dust = den_dust*(2*np.pi*r_dust*r_dust)
+        r_dust *= 1e3 # pc
+        r_disk *= 1e3 # pc
+        h_disk *= 1e3 # pc
+        h_dust *= 1e3 # pc
+        r_bulge *= 1e3 # pc
+        r_grid = 5*max(r_dust, r_disk, r_bulge)
+        h_grid = 5*max(h_dust, h_disk, r_bulge)
+        r_min = 1e-4*min(h_dust, h_disk, r_bulge)
+        r_ratio = r_grid/r_min
+        h_ratio = h_grid/r_min
+        norm_disk = l_norm*(1 - b_to_t)
+        norm_bulge = l_norm*b_to_t
+
+        fname_ssp = path.join(dir_data, "FSPS_Chabrier_neb_compact.pickle")
+        lib_ssp = pickle.load(open(fname_ssp, "rb"))
+        lam = lib_ssp['lam']
+        l_ssp_raw = lib_ssp['flx']/lib_ssp['norm'] # (lam, met, age)
+        l_ssp_raw = l_ssp_raw.reshape(l_ssp_raw.shape[0], -1).T
+        sed_disk = norm_disk*np.matmul(sfh_disk.numpy(), l_ssp_raw)
+        sed_bulge = norm_bulge*np.matmul(sfh_bulge.numpy(), l_ssp_raw)
+        fname_sed_disk = f"{prefix}_sed_disk.dat"
+        fname_sed_bulge = f"{prefix}_sed_bulge.dat"
+        np.savetxt(path.join(dirname, fname_sed_disk), np.vstack([lam, sed_disk]).T)
+        np.savetxt(path.join(dirname, fname_sed_bulge), np.vstack([lam, sed_bulge]).T)
+
+        replace_dict = {
+            'THETA': theta,
+            'M_DUST': m_dust,
+            'R_DUST': r_dust,
+            'H_DUST': h_dust,
+            'R_DISK': r_disk,
+            'H_DISK': h_disk,
+            'R_BULGE': r_bulge,
+            'R_GRID': r_grid,
+            'H_GRID': h_grid,
+            'R_RATIO': r_ratio,
+            'H_RATIO': h_ratio,
+            'NORM_DISK': norm_disk,
+            'NORM_BULGE': norm_bulge,
+            'SED_DISK': fname_sed_disk,
+            'SED_BULGE': fname_sed_bulge,
+        }
+        fname_base = path.join(dir_data, "skirt_base.ski")
+        skifile = open(fname_base, "r").readlines()
+        for i_l, line in enumerate(skifile):
+            for key, val in replace_dict.items():
+                if type(val) == str:
+                    line = line.replace(key, val)
+                else:
+                    line = line.replace(key, '%e'%val)
+            skifile[i_l] = line
+        fname_save = path.join(dirname, f"{prefix}.ski")
+        open(fname_save, "w").writelines(skifile)
+
+
     @property
     def input_size(self):
         """Number of input parameters."""

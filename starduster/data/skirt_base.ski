@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A SKIRT parameter file © Astronomical Observatory, Ghent University -->
+<skirt-simulation-hierarchy type="MonteCarloSimulation" format="9" producer="SKIRT v9.0 (git 9b8b221 built on 21/10/2020 at 19:35:02)" time="2021-05-24T10:47:08.225">
+    <MonteCarloSimulation userLevel="Regular" simulationMode="DustEmission" numPackets="1e7">
+        <random type="Random">
+            <Random seed="0"/>
+        </random>
+        <units type="Units">
+            <ExtragalacticUnits fluxOutputStyle="Wavelength"/>
+        </units>
+        <cosmology type="Cosmology">
+            <LocalUniverseCosmology/>
+        </cosmology>
+        <sourceSystem type="SourceSystem">
+            <SourceSystem minWavelength="0.09 micron" maxWavelength="100 micron" wavelengths="0.55 micron" sourceBias="0.5">
+                <sources type="Source">
+                    <GeometricSource velocityMagnitude="0 km/s" sourceWeight="1" wavelengthBias="0.5">
+                        <geometry type="Geometry">
+                            <ExpDiskGeometry scaleLength="R_DISK pc" scaleHeight="H_DISK pc" minRadius="0 pc" maxRadius="0 pc" maxZ="0 pc"/>
+                        </geometry>
+                        <sed type="SED">
+                            <FileSED filename="SED_DISK"/>
+                        </sed>
+                        <normalization type="LuminosityNormalization">
+                            <IntegratedLuminosityNormalization wavelengthRange="Source" minWavelength="0.09 micron" maxWavelength="100 micron" integratedLuminosity="NORM_DISK Lsun"/>
+                        </normalization>
+                        <wavelengthBiasDistribution type="WavelengthDistribution">
+                            <LogWavelengthDistribution minWavelength="0.0001 micron" maxWavelength="1e6 micron"/>
+                        </wavelengthBiasDistribution>
+                    </GeometricSource>
+                    <GeometricSource velocityMagnitude="0 km/s" sourceWeight="1" wavelengthBias="0.5">
+                        <geometry type="Geometry">
+                            <SersicGeometry effectiveRadius="R_BULGE pc" index="4"/>
+                        </geometry>
+                        <sed type="SED">
+                            <FileSED filename="SED_BULGE"/>
+                        </sed>
+                        <normalization type="LuminosityNormalization">
+                            <IntegratedLuminosityNormalization wavelengthRange="Source" minWavelength="0.09 micron" maxWavelength="100 micron" integratedLuminosity="NORM_BULGE Lsun"/>
+                        </normalization>
+                        <wavelengthBiasDistribution type="WavelengthDistribution">
+                            <LogWavelengthDistribution minWavelength="0.0001 micron" maxWavelength="1e6 micron"/>
+                        </wavelengthBiasDistribution>
+                    </GeometricSource>
+                </sources>
+            </SourceSystem>
+        </sourceSystem>
+        <mediumSystem type="MediumSystem">
+            <MediumSystem numDensitySamples="100">
+                <photonPacketOptions type="PhotonPacketOptions">
+                    <PhotonPacketOptions minWeightReduction="1e4" minScattEvents="0" pathLengthBias="0.5"/>
+                </photonPacketOptions>
+                <dustEmissionOptions type="DustEmissionOptions">
+                    <DustEmissionOptions dustEmissionType="Stochastic" includeHeatingByCMB="false" storeEmissionRadiationField="false" secondaryPacketsMultiplier="1" spatialBias="0.5" wavelengthBias="0.5">
+                        <cellLibrary type="SpatialCellLibrary">
+                            <AllCellsLibrary/>
+                        </cellLibrary>
+                        <radiationFieldWLG type="DisjointWavelengthGrid">
+                            <LogWavelengthGrid minWavelength="0.09 micron" maxWavelength="100 micron" numWavelengths="300"/>
+                        </radiationFieldWLG>
+                        <dustEmissionWLG type="DisjointWavelengthGrid">
+                            <LogWavelengthGrid minWavelength="1 micron" maxWavelength="10000 micron" numWavelengths="300"/>
+                        </dustEmissionWLG>
+                        <wavelengthBiasDistribution type="WavelengthDistribution">
+                            <LogWavelengthDistribution minWavelength="0.0001 micron" maxWavelength="1e6 micron"/>
+                        </wavelengthBiasDistribution>
+                    </DustEmissionOptions>
+                </dustEmissionOptions>
+                <media type="Medium">
+                    <GeometricMedium velocityMagnitude="0 km/s" magneticFieldStrength="0 uG">
+                        <geometry type="Geometry">
+                            <ExpDiskGeometry scaleLength="R_DUST pc" scaleHeight="H_DUST pc" minRadius="0 pc" maxRadius="0 pc" maxZ="0 pc"/>
+                        </geometry>
+                        <materialMix type="MaterialMix">
+                            <DraineLiDustMix numSilicateSizes="15" numGraphiteSizes="15" numPAHSizes="10"/>
+                        </materialMix>
+                        <normalization type="MaterialNormalization">
+                            <MassMaterialNormalization mass="M_DUST Msun"/>
+                        </normalization>
+                    </GeometricMedium>
+                </media>
+                <grid type="SpatialGrid">
+                    <Cylinder2DSpatialGrid maxRadius="R_GRID pc" minZ="-H_GRID pc" maxZ="H_GRID pc">
+                        <meshRadial type="Mesh">
+                            <PowMesh numBins="128" ratio="R_RATIO"/>
+                        </meshRadial>
+                        <meshZ type="MoveableMesh">
+                            <SymPowMesh numBins="128" ratio="H_RATIO"/>
+                        </meshZ>
+                    </Cylinder2DSpatialGrid>
+                </grid>
+            </MediumSystem>
+        </mediumSystem>
+        <instrumentSystem type="InstrumentSystem">
+            <InstrumentSystem>
+                <defaultWavelengthGrid type="WavelengthGrid">
+                    <LogWavelengthGrid minWavelength="0.09 micron" maxWavelength="10000 micron" numWavelengths="500"/>
+                </defaultWavelengthGrid>
+                <instruments type="Instrument">
+                    <SEDInstrument instrumentName="_" distance="100 Mpc" inclination="THETA deg" azimuth="0 deg" roll="0 deg" recordComponents="true" numScatteringLevels="0" recordPolarization="false" recordStatistics="false"/>
+                </instruments>
+            </InstrumentSystem>
+        </instrumentSystem>
+        <probeSystem type="ProbeSystem">
+            <ProbeSystem>
+                <probes type="Probe">
+                    <SpatialGridConvergenceProbe probeName="cnv" wavelength="0.55 micron"/>
+                </probes>
+            </ProbeSystem>
+        </probeSystem>
+    </MonteCarloSimulation>
+</skirt-simulation-hierarchy>
