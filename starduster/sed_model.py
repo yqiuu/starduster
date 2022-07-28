@@ -109,9 +109,9 @@ class MultiwavelengthSED(nn.Module):
         regrid : str {'base', 'auto', 'full'} or array
             Specify the wavelength grid for the SED model.
 
-            'base': the grid of training data.
-            'auto': a grid which includes some line emission features.
-            'full': the original grid of the SSP library.
+            | 'base': the grid of training data.
+            | 'auto': a grid which includes some line emission features.
+            | 'full': the original grid of the SSP library.
 
             The wavelength grid can also be given by an array.
         """
@@ -149,10 +149,10 @@ class MultiwavelengthSED(nn.Module):
             If ``True``, return luminosity in a unit of L_sol; otherwise return
             flux density in a unit of Jansky.
         component : str 
-            'combine' : Return SEDs including both stellar and dust emissions.
-            'dust_free': Return dust free SEDs.
-            'dust_attenuation' : Return dust attenuated stellar SEDs only.
-            'dust_emission' : Return dust SEDs only.
+            | 'combine' : Return SEDs including both stellar and dust emissions.
+            | 'dust_free': Return dust free SEDs.
+            | 'dust_attenuation' : Return dust attenuated stellar SEDs only.
+            | 'dust_emission' : Return dust SEDs only.
         check_selector : bool
             If ``True``, return an additional tensor indicating whether the
             input parameters are beyond the effective region.

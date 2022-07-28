@@ -24,11 +24,13 @@ def create_posterior(
         A noise model that includes the observational data.
     prior_model : module
         A prior distribution.
-    mode : str {'numpy', 'numpy_grad', 'torch'}
-        'numpy': Create a function that accepts NumPy arrays.
-        'numpy_grad': Create a function that accepts NumPy arrays and includes
-        the gradient with respect to the input as the second return parameter.
-        'torch': Create a function that accepts PyTorch tensors.
+    mode : str {'torch', 'numpy', 'numpy_grad'}
+        | 'torch': Create a function that accepts PyTorch tensors.
+        | 'numpy': Create a function that accepts NumPy arrays.
+        | 'numpy_grad': Create a function that accepts NumPy arrays and
+        includes the gradient with respect to the input as the second return
+        parameter.
+
     negative : bool
         Set ``negative=True`` if the sampler is a minimizer.
     device : str
