@@ -35,7 +35,7 @@ release = '0.1.0'
 # If your documentation needs a minimal Sphinx version, state it here.
 #
 # needs_sphinx = '1.0'
-autodoc_member_order = 'groupwise'
+autodoc_member_order = 'bysource'
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
