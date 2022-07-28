@@ -2,6 +2,7 @@ import os
 import pickle
 
 import numpy as np
+from numpy import testing
 import torch
 import sedpy
 import starduster
@@ -9,34 +10,42 @@ import starduster
 
 def test_sed_model():
     # Test whether the SED model can reproduce the stored data.
-    data = pickle.load(open(get_fname(), "rb"))
-    params = data['input']
-    spectra_fid, mags_fid = data['output']
-
     sed_model = create_sed_model()
-    with torch.no_grad():
-        spectra_test = sed_model(*params, return_ph=False)
-        mags_test = sed_model(*params, return_ph=True)
+    data = pickle.load(open(get_fname(), "rb"))
+    params = data['inputs']
 
-    np.testing.assert_allclose(spectra_fid.numpy(), spectra_test.numpy(), rtol=1e-4, atol=1e-4)
-    np.testing.assert_allclose(mags_fid.numpy(), mags_test.numpy(), rtol=1e-4, atol=1e-4)
+    for kwargs, res_fid in zip(data['options'], data['spectra']):
+        with torch.no_grad():
+            testing.assert_allclose(
+                res_fid, sed_model(*params, **kwargs).numpy(), rtol=1e-4, atol=1e-4
+            )
+
+    with torch.no_grad():
+        dust_props_test = predict_dust_props(sed_model, params)
+    for arr_fid, arr_test in zip(data['dust_props'], dust_props_test):
+        testing.assert_allclose(arr_fid, arr_test, rtol=1e-4, atol=1e-4)
+
     # Test flat input
     sed_model.configure(flat_input=True)
     params_flat = torch.hstack(params)
-    with torch.no_grad():
-        spectra_test = sed_model(params_flat, return_ph=False)
-        mags_test = sed_model(params_flat, return_ph=True)
+    for kwargs, arr_fid in zip(data['options'], data['spectra']):
+        with torch.no_grad():
+            testing.assert_allclose(
+                arr_fid, sed_model(params_flat, **kwargs).numpy(), rtol=1e-4, atol=1e-4
+            )
+        # Only test one item
+        break
 
-    np.testing.assert_allclose(spectra_fid.numpy(), spectra_test.numpy(), rtol=1e-4, atol=1e-4)
-    np.testing.assert_allclose(mags_fid.numpy(), mags_test.numpy(), rtol=1e-4, atol=1e-4)
-
+    # Test raises
+    testing.assert_raises(ValueError, sed_model, params_flat, component='???')
+    testing.assert_raises(ValueError, sed_model.configure, xxx=None)
 
 
 def create_test_data():
     sed_model = create_sed_model()
     input_shape = sed_model.adapter.free_shape
     rstate = np.random.RandomState(831)
-    n_samp = 10
+    n_samp = 2
     gp = torch.tensor(rstate.uniform(-1, 1, [n_samp, input_shape[0]]), dtype=torch.float32)
     sfh_disk = torch.tensor(
     rstate.dirichlet(np.full(input_shape[1], 0.5), n_samp), dtype=torch.float32
@@ -45,12 +54,34 @@ def create_test_data():
         rstate.dirichlet(np.full(input_shape[2], 0.5), n_samp), dtype=torch.float32
     )
 
+    options = [
+        {'return_ph': False, 'return_lum': False},
+        {'return_ph': False, 'return_lum': True},
+        {'return_ph': False, 'return_lum': False, 'component': 'dust_emission'},
+        {'return_ph': True,},
+    ]
+    spectra = []
     with torch.no_grad():
-        spectra = sed_model(gp, sfh_disk, sfh_bulge, return_ph=False)
-        mags = sed_model(gp, sfh_disk, sfh_bulge, return_ph=True)
+        for kwargs in options:
+            spectra.append(sed_model(gp, sfh_disk, sfh_bulge, **kwargs).numpy())
 
-    data = {'input': (gp, sfh_disk, sfh_bulge), 'output': (spectra, mags)}
+        dust_props = predict_dust_props(sed_model, (gp, sfh_disk, sfh_bulge))
+
+    data = {
+        'options': options,
+        'inputs': (gp, sfh_disk, sfh_bulge),
+        'spectra': spectra,
+        'dust_props': dust_props,
+    }
     pickle.dump(data, open(get_fname(), "wb"))
+
+
+def predict_dust_props(sed_model, params):
+    return (
+        sed_model.predict_absorption_fraction(*params, return_lum=True).numpy(),
+        sed_model.predict_attenuation(*params, windows=[(5450., 5550.)]).numpy(),
+        sed_model.predict_attenuation(*params).numpy(),
+    )
 
 
 def create_sed_model():
