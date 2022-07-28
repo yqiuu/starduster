@@ -137,12 +137,12 @@ class MultiwavelengthSED(nn.Module):
 
         Parameters
         ----------
-        gp : tensor
-            Galaxy parameters.
-        sfh_disk : tensor
-            Star formation history of the disk component.
-        sfh_bulge : tensor
-            Star formation history of the bulge component.
+        args : (tensor, tensor, tensor) or tensor
+            Input SED parameters, which can have two forms. Firstly, use three
+            tensors to specify the galaxy parameters, the disk star formation
+            history and the bulge star formation history. Secondly, use one
+            concatenated tensor. Set ``flat_input`` in ``configure`` to switch
+            between these two forms.
         return_ph : bool
             If ``True``, apply filters to outputs.
         return_lum : bool
@@ -202,6 +202,22 @@ class MultiwavelengthSED(nn.Module):
 
     
     def predict_absorption_fraction(self, *args, return_lum=False):
+        """Compute dust absorption fraction.
+
+        Parameters
+        ----------
+        args : (tensor, tensor, tensor) or tensor
+            See ``forward``.
+        return_lum : bool
+            If ``True`` return total infrared luminosity; otherwise return dust
+            absorption fraction.
+
+        Returns
+        -------
+        tensor
+            Dust absorption fraction or total infrared luminosity depending
+            on ``return_lum```.
+        """
         gp, sfh_disk, sfh_bulge = self.adapter(*args)
         frac = torch.ravel(self.dust_emission(gp, sfh_disk, sfh_bulge)[-1])
         if return_lum:
@@ -211,6 +227,21 @@ class MultiwavelengthSED(nn.Module):
 
 
     def predict_attenuation(self, *args, windows=None, lam_max=1.):
+        """Compute dust attenuation.
+
+        Parameters
+        ----------
+        args : (tensor, tensor, tensor) or tensor
+            See ``forward``.
+        windows : list
+            A list of (lam_min, lam_max) to specify the band of dust
+            attenuation. If ``None``, return dust attenuation curves.
+
+        Returns
+        -------
+        tensor
+            Dust attenuation.
+        """
         if windows is None:
             cond = self.lam < lam_max
             f_no_dust = self(*args, return_ph=False, component='dust_free')[:, cond]
@@ -277,9 +308,8 @@ class MultiwavelengthSED(nn.Module):
         Parameters
         ----------
         params : tensor
-            Flattened input SED parameters. The user should set
-            ``flat_input=True`` in the configuration. This method can only
-            create one set of input files at a time.
+            Input SED parameters of one galaxy. The user should set
+            ``flat_input=True`` in the configuration.
         prefix : str
             Prefix for the saved files.
         dirname : str

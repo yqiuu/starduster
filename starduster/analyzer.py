@@ -20,8 +20,8 @@ class Analyzer:
 
     Parameters
     ----------
-    target : MultiwavelengthSED
-        The target SED model.
+    sed_model : MultiwavelengthSED
+        The SED model.
     """
     def __init__(self, sed_model):
         self.sed_model = sed_model

@@ -15,6 +15,24 @@ def create_posterior(
 ):
     """Create a posterior function that can be passed to various optimisation
     and sampling tools.
+
+    Parameters
+    ----------
+    sed_model : MultiwavelengthSED
+        The SED model.
+    noise_model : module
+        A noise model that includes the observational data.
+    prior_model : module
+        A prior distribution.
+    mode : str {'numpy', 'numpy_grad', 'torch'}
+        'numpy': Create a function that accepts NumPy arrays.
+        'numpy_grad': Create a function that accepts NumPy arrays and includes
+        the gradient with respect to the input as the second return parameter.
+        'torch': Create a function that accepts PyTorch tensors.
+    negative : bool
+        Set ``negative=True`` if the sampler is a minimizer.
+    device : str
+        Device for the required modules.
     """
     if device is not None:
         sed_model.to(device)
@@ -153,7 +171,7 @@ def sample_effective_region(target, n_samp=1, sampler=None, max_iter=10000):
     n_samp : int
         Number of the samples
     sampler : callable
-        A base sampler. If None, sample parameters uniformly in the bounds.
+        A base sampler. If ``None``, sample parameters uniformly in the bounds.
     max_iter : int
         Maximum iteration of the accept-reject sampling.
 
