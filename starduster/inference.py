@@ -135,7 +135,7 @@ def optimize(log_post, cls_opt, x0=None, n_step=1000, lr=1e-2, progress_bar=True
         Learning rate.
     progress_bar : bool
         If True, show a progress bar.
-    **kwargs_opt
+    kwargs_opt
         Keyword arguments used to initalise the optimiser.
 
     Returns
@@ -156,6 +156,46 @@ def optimize(log_post, cls_opt, x0=None, n_step=1000, lr=1e-2, progress_bar=True
             pbar.update()
 
     return model.params.detach()
+
+
+def optimize(log_post, cls_opt, x0=None, n_step=1000, lr=1e-2, progress_bar=True, **kwargs_opt):
+    """Optimise a posterior distribution using a Pytorch optimiser.
+
+    Parameters
+    ----------
+    log_post : Posterior
+        Target posterior distribution.
+    cls_opt : torch.optim.Optimizer
+        PyTorch optimiser class.
+    x0 : tensor
+        Initial parameters.
+    n_step : int
+        Number of the optimisation steps.
+    lr : float
+        Learning rate.
+    progress_bar : bool
+        If True, show a progress bar.
+    **kwargs_opt
+        Keyword arguments used to initalise the optimiser.
+
+    Returns
+    -------
+    tensor
+        Best-fitting parameters.
+    """
+    params = torch.tensor(x0, device=x0.device, requires_grad=True)
+    opt = cls_opt([params], lr=lr, **kwargs_opt)
+    with tqdm(total=n_step, disable=(not progress_bar)) as pbar:
+        for i_step in range(n_step):
+            loss = log_post(params)
+            loss.backward()
+            opt.step()
+            opt.zero_grad()
+
+            pbar.set_description('loss: %.3e'%float(loss))
+            pbar.update()
+
+    return params.detach()
 
 
 def sample_effective_region(target, n_samp=1, sampler=None, max_iter=10000):
