@@ -25,9 +25,9 @@ def create_posterior(
     prior_model : module
         A prior distribution.
     mode : str {'torch', 'numpy', 'numpy_grad'}
-        | 'torch': Create a function that accepts PyTorch tensors.
-        | 'numpy': Create a function that accepts NumPy arrays.
-        | 'numpy_grad': Create a function that accepts NumPy arrays and
+        - 'torch': Create a function that accepts PyTorch tensors.
+        - 'numpy': Create a function that accepts NumPy arrays.
+        - 'numpy_grad': Create a function that accepts NumPy arrays and
         includes the gradient with respect to the input as the second return
         parameter.
 

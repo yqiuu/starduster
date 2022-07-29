@@ -89,11 +89,13 @@ class Parametrization(nn.Module):
         bounds : array
             An array of (min, max) to specify the working bounds of the
             parameters.
-        boundary : str {'none', 'clipping', 'reflecting'}
-            'none' : Do not apply any transform.
-            'clipping' : Clip the parameters when they are beyond the bounds.
-            'reflecting' : Apply reflecting boundary condition to the
-            parameters.
+        boundary : str {'none', 'clipping', 'reflecting', 'absorbing'}
+            - 'none': Do not apply any transform.
+            - 'clipping': Clip the parameters when they are beyond the bounds.
+            - 'reflecting': Apply reflecting boundary condition to the
+              parameters.
+            - 'absorbing': Uniformly sample parameters when they are beyond the
+              bounds.
         """
         # return param_names, fixed_params, bounds_default, bounds, boundary
         pass

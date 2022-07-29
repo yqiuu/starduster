@@ -7,6 +7,9 @@ starduster.sed_model
     :members:
     :show-inheritance:
 
+|
+|
+
 starduster.sam
 --------------
 .. automodule:: starduster.sam
@@ -14,12 +17,19 @@ starduster.sam
     :special-members: __call__
     :show-inheritance:
 
+|
+|
+
 starduster.parametrization
 ---------------------------
 .. automodule:: starduster.parametrization
     :members:
+    :private-members: Parametrization
     :exclude-members: forward
     :show-inheritance:
+
+|
+|
 
 starduster.inference
 --------------------
@@ -27,8 +37,12 @@ starduster.inference
     :members:
     :show-inheritance:
 
+|
+|
+
 starduster.analyzer
 -------------------
 .. automodule:: starduster.analyzer
     :members:
     :show-inheritance:
+
