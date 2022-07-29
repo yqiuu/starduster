@@ -19,7 +19,8 @@ def sample_params(n_samp, bounds):
 @pytest.mark.parametrize("target,need_check_norm", (
     (sd.GalaxyParameter(), False),
     (sd.VanillaGrid(simplex_transform=True), True),
-    (sd.CompositeGrid(sd.ExponentialSFH(), sd.InterpolatedMH()), True)
+    (sd.CompositeGrid(sd.ExponentialSFH(), sd.InterpolatedMH()), True),
+    (sd.CompositeGrid(sd.ExponentialSFH(), sd.ClosedBoxMH()), True),
 ))
 def test_parametrization(target, need_check_norm):
     # Test whether the parameterization gives the correct shape and whether the

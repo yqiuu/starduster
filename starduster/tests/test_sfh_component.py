@@ -33,6 +33,7 @@ def test_sfh(target, need_check_norm):
 
 @pytest.mark.parametrize("target", (
     sd.InterpolatedMH(),
+    sd.ClosedBoxMH(),
 ))
 def test_mh(target):
     # Test whether the SFH component gives the correct shape and whether the
@@ -51,7 +52,7 @@ def test_mh(target):
 
     assert mh.size() == torch.Size((n_samp, lib_ssp.n_met, 1)) \
         or mh.size() == torch.Size((n_samp, lib_ssp.n_met, lib_ssp.n_tau))
-    testing.assert_allclose(torch.sum(mh, dim=(1, 2)).numpy(), 1.)
+    testing.assert_allclose(torch.sum(mh, dim=1).numpy(), 1.)
 
 
 def test_discrete_sfh_raises():
