@@ -88,3 +88,18 @@ def test_fixed_params(target):
     params_out_expect = params_all_fixed.tile((n_samp, 1)).numpy()
     testing.assert_allclose(params_out, params_out_expect, rtol=RTOL, atol=ATOL)
 
+
+def test_boundary():
+    # Test whether parameters are within boundary after applying the boundary
+    # condition.
+    sed_model = sd.MultiwavelengthSED.from_builtin()
+    for boundary in ['clipping', 'reflecting', 'absorbing']:
+        pn = sd.GalaxyParameter(boundary=boundary)
+        pn.enable(sed_model.helper, sed_model.lib_ssp)
+        lb, ub = torch.as_tensor(pn.bounds.T, dtype=torch.float32)
+        n_samp = 5
+        samps = 5*(lb + (ub - lb)*torch.rand(n_samp, len(lb)))
+        assert torch.any((samps < lb) | (samps > ub))
+        samps = pn(samps)
+        assert torch.all((samps >= lb) & (samps <= ub))
+
