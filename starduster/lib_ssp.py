@@ -70,18 +70,21 @@ class SSPLibrary:
 
     def prepare_lam_eval(self, regrid, l_ssp_raw, log_lam_ssp, lam_base, lam_full):
         self.regrid = regrid
-        if regrid == 'base':
-            lam_eval = lam_base
-        elif regrid == 'auto':
-            inds_reduce = reduction(l_ssp_raw, log_lam_ssp, eps=1e-5)[-1]
-            lam_reduce = lam_full[inds_reduce]
-            lam_eval = np.append(lam_reduce[lam_reduce >= lam_base[0]], lam_base)
-            lam_eval = np.sort(lam_eval)
-        elif regrid == 'full':
-            lam_eval = np.append(lam_full[lam_full >= lam_base[0]], lam_base)
-            lam_eval = np.sort(lam_eval)
+        if type(regrid) == str:
+            if regrid == 'base':
+                lam_eval = lam_base
+            elif regrid == 'auto':
+                inds_reduce = reduction(l_ssp_raw, log_lam_ssp, eps=1e-5)[-1]
+                lam_reduce = lam_full[inds_reduce]
+                lam_eval = np.append(lam_reduce[lam_reduce >= lam_base[0]], lam_base)
+                lam_eval = np.sort(lam_eval)
+            elif regrid == 'full':
+                lam_eval = np.append(lam_full[lam_full >= lam_base[0]], lam_base)
+                lam_eval = np.sort(lam_eval)
+            else:
+                raise ValueError(f"Unknown regrid: '{regrid}'.")
         else:
-            lam_eval = np.asarray(lam_eval)
+            lam_eval = np.asarray(regrid)
         return lam_eval
 
 
