@@ -122,15 +122,15 @@ def kld_binary(a_pred, a_true, eps=1e-6):
 
 
 def reduce_loss(loss, reduction):
-    if reduction is 'mean':
+    if reduction == 'mean':
         return torch.mean(loss)
-    elif reduction is 'sum':
+    elif reduction == 'sum':
         return torch.sum(loss)
-    elif reduction is 'square_mean':
+    elif reduction == 'square_mean':
         return torch.mean(loss*loss)
-    elif reduction is 'square_sum':
+    elif reduction == 'square_sum':
         return torch.sum(loss*loss)
-    elif reduction is 'none':
+    elif reduction == 'none':
         return loss
     else:
         raise ValueError("Invalid reduction: {}".format(reduction))
