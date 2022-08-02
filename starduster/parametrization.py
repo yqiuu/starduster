@@ -471,6 +471,13 @@ class InterpolatedSFH(SFHComponent):
 
 
 class AnalyticSFH(SFHComponent):
+    """Base class for an analytic SFH model.
+
+    Parameters
+    ----------
+    n_sub : int
+        Number of points for the integration.
+    """
     def __init__(self, n_sub=16):
         self.n_sub = n_sub
         super().__init__()
@@ -520,6 +527,21 @@ class AnalyticSFH(SFHComponent):
 
 
 class ExponentialSFH(AnalyticSFH):
+    r"""Exponentially declining SFH.
+
+    The model as a function of stellar age is:
+
+    .. math::
+        \text{SFH}(t) \propto \begin{cases}
+            e^{t/\tau} & \text{ if } t < t_\text{trunc} \\
+            0 & \text{ otherwise } \\
+        \end{cases}
+
+    Parameters
+    ----------
+    n_sub : int
+        Number of points for the integration.
+    """
     def _init(self, lib_ssp, *args):
         param_names = ['log10_tau', 'log10_t0']
         log_t0_min = math.log10(lib_ssp.tau_edges[0])
@@ -537,6 +559,21 @@ class ExponentialSFH(AnalyticSFH):
 
 
 class DelayedExponentialSFH(AnalyticSFH):
+    r"""Delayed exponentially declining SFH.
+
+    The model as a function of stellar age is:
+
+    .. math::
+        \text{SFH}(t) \propto \begin{cases}
+            (t_\text{trunc} - t) e^{t/\tau} & \text{ if } t < t_\text{trunc} \\
+            0 & \text{ otherwise } \\
+        \end{cases}
+
+    Parameters
+    ----------
+    n_sub : int
+        Number of points for the integration.
+    """
     def _init(self, lib_ssp, *args):
         param_names = ['log10_tau', 'log10_t0']
         log_t0_min = math.log10(lib_ssp.tau_edges[1])
@@ -571,6 +608,11 @@ class InterpolatedMH(SFHComponent):
 
 
 class ClosedBoxMH(SFHComponent):
+    """Metallicity history that is proportional to the cumulative SFH.
+
+    This model can be found in Robotham et al. 2020, which approximates the
+    closed box metallicity evolution.
+    """
     def _init(self, lib_ssp, *args):
         met = lib_ssp.met/constants.met_sol
         self.register_buffer('met', met)
