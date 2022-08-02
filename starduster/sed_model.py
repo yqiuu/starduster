@@ -271,9 +271,6 @@ class MultiwavelengthSED(nn.Module):
             Parametrisation of the bulge star formation history.
         flat_input : bool
             If ``True``, assume the input array is flat.
-        check_sfh_norm : bool
-            If ``True``, raise an error when star formation history is not
-            normalised to one.
         filters : sedpy.observate.Filter
             Output filters.
         redshift : float

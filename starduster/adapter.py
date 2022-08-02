@@ -31,7 +31,6 @@ class Adapter(nn.Module, Configurable):
             pn_sfh_bulge=VanillaGrid(),
             share_pn='none',
             flat_input=False,
-            check_sfh_norm=True,
         )
         if selector_disk is not None:
             self.selector_disk = selector_disk
@@ -80,11 +79,6 @@ class Adapter(nn.Module, Configurable):
             gp = self.pn_gp(gp)
             sfh_disk = self.pn_sfh_disk(sfh_disk)
             sfh_bulge = self.pn_sfh_bulge(sfh_bulge)
-
-        if self.check_sfh_norm:
-            msg = "Star formation history must be normalised to one."
-            assert torch.allclose(sfh_disk.sum(dim=-1), torch.tensor(1.), atol=1e-5), msg
-            assert torch.allclose(sfh_bulge.sum(dim=-1), torch.tensor(1.), atol=1e-5), msg
 
         if check_selector:
             return gp, sfh_disk, sfh_bulge, self._eval_selector(gp)
