@@ -252,13 +252,24 @@ class Analyzer:
         tensor or (tensor, tensor) [M_sol]
             SFR.
         """
+        tau_edges = self.lib_ssp.tau_edges
+        if time_scale < tau_edges[0] or time_scale > tau_edges[-1]:
+            raise ValueError("Invalid time scale.")
+
         sfh_disk_0 = self.lib_ssp.sum_over_met(sfh_disk_0)
         sfh_bulge_0 = self.lib_ssp.sum_over_met(sfh_bulge_0)
-
-        d_tau = torch.cumsum(self.lib_ssp.d_tau, dim=0)
-        idx = torch.argmin(torch.abs(d_tau - time_scale))
-        sfr_disk = sfh_disk_0[:, :idx+1].sum(dim=1)/d_tau[idx]
-        sfr_bulge = sfh_bulge_0[:, :idx+1].sum(dim=1)/d_tau[idx]
+        sfr_disk = torch.zeros(len(sfh_disk_0))
+        sfr_bulge = torch.zeros(len(sfh_bulge_0))
+        for i_bin in range(len(tau_edges)):
+            if time_scale >= tau_edges[i_bin + 1]:
+                sfr_disk += sfh_disk_0[:, i_bin]
+                sfr_bulge += sfh_bulge_0[:, i_bin]
+            else:
+                frac = (time_scale - tau_edges[i_bin])/(tau_edges[i_bin+1] - tau_edges[i_bin])
+                sfr_disk += sfh_disk_0[:, i_bin]*frac
+                break
+        sfr_disk /= time_scale
+        sfr_bulge /= time_scale
 
         if separate:
             return sfr_disk, sfr_bulge
