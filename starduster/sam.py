@@ -15,17 +15,19 @@ class SemiAnalyticConventer:
     ----------
     sed_model : MultiwavelengthSED
         The target SED model.
-    age_bins : array [yr]
-        Stellar age bins.
+    ages : array [yr]
+        Stellar ages or age bins.
+    is_instant: bool
+        If True, treat the mass in the SFH as instant bursties.
     frac_recycle : float
         Mass recycling fraction. Use this parameter for semi-analytic models
         that assume instantaneous supernova feedback and do not correct the
         output mass in the star formation history.
     """
-    def __init__(self, sed_model, age_bins, frac_recycle=0.):
+    def __init__(self, sed_model, ages, is_instant=False, frac_recycle=0.):
         self.helper = sed_model.helper
         self.lib_ssp = sed_model.lib_ssp
-        self._tau_matrix = self._create_tau_matrix(age_bins)
+        self._tau_matrix = self._create_tau_matrix(ages, is_instant)
         self._frac_recycle = frac_recycle
 
 
@@ -80,7 +82,33 @@ class SemiAnalyticConventer:
         return gp, sfh_disk, sfh_bulge
 
 
-    def _create_tau_matrix(self, age_bins):
+    def _create_tau_matrix(self, ages, is_instant):
+        if is_instant:
+            return self._create_tau_matrix_instant(ages)
+        return self._create_tau_matrix_step(ages)
+
+
+    def _create_tau_matrix_instant(self, ages):
+        tau = self.lib_ssp.tau.numpy()
+        inds = np.searchsorted(tau, ages)
+
+        matrix = np.zeros([len(ages), len(tau)], dtype=np.float32)
+        for i_age, idx in enumerate(inds):
+            weights = np.zeros(len(tau))
+            if idx == 0:
+                weights[0] = 1.
+            elif idx == len(tau):
+                weights[-1] = 1.
+            else:
+                w = (ages[i_age] - tau[idx - 1])/(tau[idx] - tau[idx - 1])
+                weights[idx] = w
+                weights[idx - 1] = 1 - w
+            matrix[i_age] = weights
+        
+        return matrix
+
+
+    def _create_tau_matrix_step(self, age_bins):
         tau_edges = self.lib_ssp.tau_edges.numpy()
         n_edge = len(tau_edges)
         d_tau_base = np.diff(tau_edges)
