@@ -175,23 +175,24 @@ class MultiwavelengthSED(nn.Module):
         else:
             apply_dust = True
         l_main = self.dust_attenuation(gp, sfh_disk, sfh_bulge, apply_dust)
-
-        l_dust_slice, frac = self.dust_emission(gp, sfh_disk, sfh_bulge)
-        if self.interp_de is None:
-            l_dust = self.helper.set_item(torch.zeros_like(l_main), 'slice_lam_de', l_dust_slice)
-        else:
-            l_dust = self.interp_de(l_dust_slice)
-        l_dust = frac*l_dust
-
         l_norm = self.helper.get_recover(gp, 'l_norm', torch)[:, None]
-        if component == 'combine':
-            l_ret = l_norm*(l_main + l_dust)
-        elif component == 'dust_free' or component == 'dust_attenuation':
+
+        if component == 'dust_free' or component == 'dust_attenuation':
             l_ret = l_norm*l_main
-        elif component == 'dust_emission':
-            l_ret = l_norm*l_dust
         else:
-            raise ValueError(f"Unknow component: {component}.")
+            l_dust_slice, frac = self.dust_emission(gp, sfh_disk, sfh_bulge)
+            if self.interp_de is None:
+                l_dust = self.helper.set_item(torch.zeros_like(l_main), 'slice_lam_de', l_dust_slice)
+            else:
+                l_dust = self.interp_de(l_dust_slice)
+            l_dust = frac*l_dust
+
+            if component == 'combine':
+                l_ret = l_norm*(l_main + l_dust)
+            elif component == 'dust_emission':
+                l_ret = l_norm*l_dust
+            else:
+                raise ValueError(f"Unknow component: {component}.")
         l_ret = torch.squeeze(self.detector(l_ret, return_ph, return_lum))
 
         if check_selector:
